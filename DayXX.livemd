@@ -1,6 +1,7 @@
 # Day XX
 
 ```elixir
+# Change working directory to this file's directory.
 File.cd(Path.dirname(__ENV__.file))
 ```
 
