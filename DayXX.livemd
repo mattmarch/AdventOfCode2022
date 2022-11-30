@@ -1,7 +1,7 @@
 # Day XX
 
 ```elixir
-File.cd("advent_of_code_2022")
+File.cd(Path.dirname(__ENV__.file))
 ```
 
 ## Parse input
