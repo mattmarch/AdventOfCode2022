@@ -1,0 +1,12 @@
+# Day XX
+
+```elixir
+File.cd("advent_of_code_2022")
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/XX.txt")
+input
+```
