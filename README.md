@@ -1,6 +1,6 @@
 # Advent of Code 2022
 
-Solutions to Advent of Code 2022 in Elixir using Livebook.
+Solutions to Advent of Code 2022 in Elixir using Livebook ([taking inspiration from José Valim in 2021](https://github.com/josevalim/livebooks/tree/main/advent_of_code/2021)).
 
 ## Running
 
