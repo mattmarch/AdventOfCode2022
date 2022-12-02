@@ -1,0 +1,124 @@
+# Day 02
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/02.txt") |> String.split("\n")
+test_input = ["A Y", "B X", "C Z"]
+```
+
+```elixir
+defmodule ParseLine do
+  def parse(line) do
+    [theirs, ours] = line |> String.split(" ")
+
+    theirs_decoded =
+      case theirs do
+        "A" -> :rock
+        "B" -> :paper
+        "C" -> :scissors
+      end
+
+    ours_decoded =
+      case ours do
+        "X" -> :rock
+        "Y" -> :paper
+        "Z" -> :scissors
+      end
+
+    [theirs_decoded, ours_decoded]
+  end
+end
+
+test_symbols = test_input |> Enum.map(&ParseLine.parse/1)
+```
+
+## Calculate scores based on chosen shape and outcome
+
+```elixir
+defmodule CalculateScores do
+  def total_score([theirs, ours]) do
+    outcome_score([theirs, ours]) + shape_score(ours)
+  end
+
+  def shape_score(shape) do
+    case shape do
+      :rock -> 1
+      :paper -> 2
+      :scissors -> 3
+    end
+  end
+
+  def outcome_score([theirs, ours]) when theirs == ours do
+    3
+  end
+
+  def outcome_score(shapes)
+      when shapes in [[:rock, :paper], [:paper, :scissors], [:scissors, :rock]] do
+    6
+  end
+
+  def outcome_score([_theirs, _ours]) do
+    0
+  end
+end
+
+test_symbols |> Enum.map(&CalculateScores.total_score/1) |> Enum.sum()
+```
+
+## Solve part 1 with real input
+
+```elixir
+input
+|> Enum.map(&ParseLine.parse/1)
+|> Enum.map(&CalculateScores.total_score/1)
+|> Enum.sum()
+```
+
+## Redo ParseLine for part 2 rules
+
+```elixir
+defmodule ParseLine2 do
+  def parse(line) do
+    [theirs, ours] = line |> String.split(" ")
+
+    theirs_decoded =
+      case theirs do
+        "A" -> :rock
+        "B" -> :paper
+        "C" -> :scissors
+      end
+
+    ours_decoded =
+      case [theirs_decoded, ours] do
+        symbols when symbols in [[:rock, "Y"], [:paper, "X"], [:scissors, "Z"]] -> :rock
+        symbols when symbols in [[:rock, "Z"], [:paper, "Y"], [:scissors, "X"]] -> :paper
+        symbols when symbols in [[:rock, "X"], [:paper, "Z"], [:scissors, "Y"]] -> :scissors
+      end
+
+    [theirs_decoded, ours_decoded]
+  end
+end
+
+test_symbols2 = test_input |> Enum.map(&ParseLine2.parse/1)
+```
+
+And validate we get the correct score for the test input
+
+```elixir
+test_symbols2 |> Enum.map(&CalculateScores.total_score/1) |> Enum.sum()
+```
+
+## Real input through part 2
+
+```elixir
+input
+|> Enum.map(&ParseLine2.parse/1)
+|> Enum.map(&CalculateScores.total_score/1)
+|> Enum.sum()
+```
