@@ -1,0 +1,135 @@
+# Day 03
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/03.txt") |> String.split()
+test_input = File.read!("inputs/test03.txt") |> String.split()
+```
+
+## Testing some things out for a single rucksack
+
+```elixir
+[first_contents | _tail] = test_input
+
+split_position =
+  first_contents
+  |> String.length()
+  |> div(2)
+
+{first_compartment, second_compartment} =
+  first_contents
+  |> String.split_at(split_position)
+
+first_compartment_char_set = first_compartment |> String.to_charlist() |> MapSet.new()
+second_compartment_char_set = second_compartment |> String.to_charlist() |> MapSet.new()
+
+[common_item] =
+  MapSet.intersection(first_compartment_char_set, second_compartment_char_set)
+  |> MapSet.to_list()
+
+if common_item > 97 do
+  common_item - 96
+else
+  common_item - 38
+end
+```
+
+## Solution to part 1
+
+```elixir
+defmodule Solve do
+  def char_to_priority(char) when char > 96, do: char - 96
+
+  def char_to_priority(char), do: char - 38
+
+  def get_common_item(contents) do
+    split_position =
+      contents
+      |> String.length()
+      |> div(2)
+
+    [first_compartment_set, second_compartment_set] =
+      contents
+      |> String.split_at(split_position)
+      |> Tuple.to_list()
+      |> Enum.map(&String.to_charlist/1)
+      |> Enum.map(&MapSet.new/1)
+
+    [common_item] =
+      MapSet.intersection(first_compartment_set, second_compartment_set)
+      |> MapSet.to_list()
+
+    common_item
+  end
+
+  def solve(content_lists) do
+    content_lists
+    |> Enum.map(&Solve.get_common_item/1)
+    |> Enum.map(&Solve.char_to_priority/1)
+    |> Enum.sum()
+  end
+end
+
+test_input |> Solve.solve()
+```
+
+And with the real input...
+
+```elixir
+input |> Solve.solve()
+```
+
+## Working out part 2 for a single group
+
+```elixir
+[first_group, _tail] =
+  test_input
+  |> Enum.chunk_every(3)
+
+group_bag_sets =
+  first_group
+  |> Enum.map(&String.to_charlist/1)
+  |> Enum.map(&MapSet.new/1)
+
+group_bag_sets
+|> Enum.reduce(&MapSet.intersection/2)
+```
+
+## Part 2 solution
+
+```elixir
+defmodule Solve2 do
+  def get_common_item(bag_group) do
+    [common_item] =
+      bag_group
+      |> Enum.map(&String.to_charlist/1)
+      |> Enum.map(&MapSet.new/1)
+      |> Enum.reduce(&MapSet.intersection/2)
+      |> MapSet.to_list()
+
+    common_item
+  end
+
+  def solve(all_bags) do
+    all_bags
+    |> Enum.chunk_every(3)
+    |> Enum.map(&Solve2.get_common_item/1)
+    |> Enum.map(&Solve.char_to_priority/1)
+    |> Enum.sum()
+  end
+end
+
+test_input |> Solve2.solve()
+```
+
+And with the real input...
+
+```elixir
+input |> Solve2.solve()
+```
