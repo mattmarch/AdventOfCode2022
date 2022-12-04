@@ -1,0 +1,97 @@
+# Day 04
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/04.txt")
+test_input = File.read!("inputs/test04.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse_range(range) do
+    range
+    |> String.split("-")
+    |> Enum.map(&String.to_integer/1)
+  end
+
+  def parse_line(line) do
+    line
+    |> String.split(",")
+    |> Enum.map(&Parse.parse_range/1)
+  end
+
+  def parse(input) do
+    input
+    |> String.split()
+    |> Enum.map(&Parse.parse_line/1)
+  end
+end
+
+test_section_assignments = Parse.parse(test_input)
+```
+
+## Solve part 1
+
+```elixir
+defmodule Solve do
+  def range_fully_contains([super_start, super_end], [sub_start, sub_end]) do
+    super_start <= sub_start and super_end >= sub_end
+  end
+
+  def one_range_fully_contained([range1, range2]) do
+    Solve.range_fully_contains(range1, range2) or Solve.range_fully_contains(range2, range1)
+  end
+
+  def solve(section_assignments) do
+    section_assignments
+    |> Enum.count(&Solve.one_range_fully_contained/1)
+  end
+end
+
+Solve.solve(test_section_assignments)
+```
+
+And with real input...
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
+
+## Solve part 2
+
+Including some sanity checks on checking if ranges overlap!
+
+```elixir
+defmodule Solve2 do
+  def ranges_overlap([[start1, end1], [start2, end2]]) do
+    (end1 >= start2 and end1 <= end2) or
+      (start1 >= start2 and start1 <= end2) or
+      (start2 >= start1 and start2 <= end1)
+  end
+
+  def solve(section_assignments) do
+    section_assignments
+    |> Enum.count(&Solve2.ranges_overlap/1)
+  end
+end
+
+true = Solve2.ranges_overlap([[1, 5], [5, 8]])
+true = Solve2.ranges_overlap([[3, 7], [3, 3]])
+true = Solve2.ranges_overlap([[3, 4], [1, 9]])
+false = Solve2.ranges_overlap([[1, 4], [5, 9]])
+true = Solve2.ranges_overlap([[2, 8], [3, 7]])
+
+test_section_assignments |> Solve2.solve()
+```
+
+And finally part 2 with real input...
+
+```elixir
+input |> Parse.parse() |> Solve2.solve()
+```
