@@ -40,17 +40,17 @@ test_section_assignments = Parse.parse(test_input)
 
 ```elixir
 defmodule Solve do
-  def range_fully_contains([super_start, super_end], [sub_start, sub_end]) do
+  def range_fully_contains?([super_start, super_end], [sub_start, sub_end]) do
     super_start <= sub_start and super_end >= sub_end
   end
 
-  def one_range_fully_contained([range1, range2]) do
-    Solve.range_fully_contains(range1, range2) or Solve.range_fully_contains(range2, range1)
+  def one_range_fully_contained?([range1, range2]) do
+    Solve.range_fully_contains?(range1, range2) or Solve.range_fully_contains?(range2, range1)
   end
 
   def solve(section_assignments) do
     section_assignments
-    |> Enum.count(&Solve.one_range_fully_contained/1)
+    |> Enum.count(&Solve.one_range_fully_contained?/1)
   end
 end
 
@@ -69,23 +69,21 @@ Including some sanity checks on checking if ranges overlap!
 
 ```elixir
 defmodule Solve2 do
-  def ranges_overlap([[start1, end1], [start2, end2]]) do
-    (end1 >= start2 and end1 <= end2) or
-      (start1 >= start2 and start1 <= end2) or
-      (start2 >= start1 and start2 <= end1)
+  def ranges_overlap?([[start1, end1], [start2, end2]]) do
+    start2 <= end1 and end2 >= start1
   end
 
   def solve(section_assignments) do
     section_assignments
-    |> Enum.count(&Solve2.ranges_overlap/1)
+    |> Enum.count(&Solve2.ranges_overlap?/1)
   end
 end
 
-true = Solve2.ranges_overlap([[1, 5], [5, 8]])
-true = Solve2.ranges_overlap([[3, 7], [3, 3]])
-true = Solve2.ranges_overlap([[3, 4], [1, 9]])
-false = Solve2.ranges_overlap([[1, 4], [5, 9]])
-true = Solve2.ranges_overlap([[2, 8], [3, 7]])
+true = Solve2.ranges_overlap?([[1, 5], [5, 8]])
+true = Solve2.ranges_overlap?([[3, 7], [3, 3]])
+true = Solve2.ranges_overlap?([[3, 4], [1, 9]])
+false = Solve2.ranges_overlap?([[1, 4], [5, 9]])
+true = Solve2.ranges_overlap?([[2, 8], [3, 7]])
 
 test_section_assignments |> Solve2.solve()
 ```
