@@ -1,0 +1,145 @@
+# Day 05
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/05.txt")
+test_input = File.read!("inputs/test05.txt")
+```
+
+Parsing the input (the difficult part of today)...
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    [stacks, instructions] = input |> String.split("\n\n")
+    {parse_stacks(stacks), parse_instructions(instructions)}
+  end
+
+  def parse_stacks(stacks_string) do
+    stacks_string
+    |> String.split("\n")
+    |> Enum.drop(-1)
+    |> Enum.map(&parse_stack_row/1)
+    |> transpose()
+    |> Enum.map(&drop_leading_nils/1)
+  end
+
+  def parse_stack_row(stack_row_string) do
+    stack_row_string
+    |> String.to_charlist()
+    |> Enum.chunk_every(4)
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&parse_crate/1)
+  end
+
+  def parse_crate(""), do: nil
+
+  def parse_crate("[" <> letter), do: String.replace_suffix(letter, "]", "")
+
+  def transpose(arr) do
+    Enum.zip_with(arr, & &1)
+  end
+
+  def drop_leading_nils(stack) do
+    stack |> Enum.drop_while(fn crate -> crate == nil end)
+  end
+
+  def parse_instructions(instructions_string) do
+    instructions_string
+    |> String.split("\n")
+    |> Enum.map(&parse_instruction_line/1)
+  end
+
+  def parse_instruction_line(instruction_line) do
+    Regex.scan(~r/[0-9]+/, instruction_line)
+    |> Enum.map(fn [x] -> String.to_integer(x) end)
+    |> List.to_tuple()
+  end
+end
+
+{test_stacks, test_instructions} = Parse.parse(test_input)
+```
+
+## Solving part 1
+
+```elixir
+defmodule Solve do
+  def move(state, amount, from, to) do
+    {moving_crates, remaining_crates} = state |> Enum.fetch!(from - 1) |> Enum.split(amount)
+
+    state
+    |> List.replace_at(from - 1, remaining_crates)
+    |> List.update_at(to - 1, fn start_crates -> Enum.reverse(moving_crates) ++ start_crates end)
+  end
+
+  def apply_instructions(initial_state, instructions) do
+    instructions
+    |> Enum.reduce(initial_state, fn {amount, from, to}, state ->
+      move(state, amount, from, to)
+    end)
+  end
+
+  def solve(stacks, instructions) do
+    updated_stacks = apply_instructions(stacks, instructions)
+
+    updated_stacks
+    |> Enum.map(fn stack -> stack |> Enum.at(0) end)
+    |> Enum.join()
+  end
+end
+
+Solve.solve(test_stacks, test_instructions)
+```
+
+With the real input...
+
+```elixir
+{stacks, instructions} = Parse.parse(input)
+Solve.solve(stacks, instructions)
+```
+
+## Solving part 2
+
+Copied from above but without the `Enum.reverse()` when adding the crates to the new pile!
+
+```elixir
+defmodule Solve2 do
+  def move(state, amount, from, to) do
+    {moving_crates, remaining_crates} = state |> Enum.fetch!(from - 1) |> Enum.split(amount)
+
+    state
+    |> List.replace_at(from - 1, remaining_crates)
+    |> List.update_at(to - 1, fn start_crates -> moving_crates ++ start_crates end)
+  end
+
+  def apply_instructions(initial_state, instructions) do
+    instructions
+    |> Enum.reduce(initial_state, fn {amount, from, to}, state ->
+      move(state, amount, from, to)
+    end)
+  end
+
+  def solve(stacks, instructions) do
+    updated_stacks = apply_instructions(stacks, instructions)
+
+    updated_stacks
+    |> Enum.map(fn stack -> stack |> Enum.at(0) end)
+    |> Enum.join()
+  end
+end
+
+Solve2.solve(test_stacks, test_instructions)
+```
+
+And finally with the real input...
+
+```elixir
+Solve2.solve(stacks, instructions)
+```
