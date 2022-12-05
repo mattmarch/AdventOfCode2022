@@ -90,7 +90,7 @@ defmodule Solve do
     updated_stacks = apply_instructions(stacks, instructions)
 
     updated_stacks
-    |> Enum.map(fn stack -> stack |> Enum.at(0) end)
+    |> Enum.map(fn [top_crate | _others] -> top_crate end)
     |> Enum.join()
   end
 end
@@ -130,7 +130,7 @@ defmodule Solve2 do
     updated_stacks = apply_instructions(stacks, instructions)
 
     updated_stacks
-    |> Enum.map(fn stack -> stack |> Enum.at(0) end)
+    |> Enum.map(fn [top_crate | _others] -> top_crate end)
     |> Enum.join()
   end
 end
