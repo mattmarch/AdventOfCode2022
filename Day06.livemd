@@ -1,0 +1,56 @@
+# Day 06
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/06.txt")
+testInput = "mjqjpqmgbljsphdztnvjfqwrcgsmlb"
+input
+```
+
+## Solve
+
+As it turns out both parts, by just parameterising marker length.
+
+```elixir
+defmodule Solve do
+  def all_unique?(window) do
+    total_elements = window |> Enum.count()
+    window |> Enum.uniq() |> Enum.count() == total_elements
+  end
+
+  def solve(datastream_buffer, marker_length) do
+    [{_window, i} | _rest] =
+      datastream_buffer
+      |> String.codepoints()
+      |> Enum.chunk_every(marker_length, 1, :discard)
+      |> Enum.with_index()
+      |> Enum.filter(fn {window, _i} -> all_unique?(window) end)
+
+    i + marker_length
+  end
+end
+
+Solve.solve(testInput, 4)
+```
+
+## Part 1 with real input
+
+```elixir
+Solve.solve(input, 4)
+```
+
+## And part 2
+
+```elixir
+Solve.solve(testInput, 14)
+```
+
+```elixir
+Solve.solve(input, 14)
+```
