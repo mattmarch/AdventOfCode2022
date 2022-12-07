@@ -1,0 +1,159 @@
+# Day 07
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/07.txt") |> String.split("\n")
+test_input = File.read!("inputs/test07.txt") |> String.split("\n")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input |> Enum.map(&parse_line/1)
+  end
+
+  def parse_line("$ cd " <> path), do: {:cd, path}
+
+  def parse_line("$ ls"), do: {:ls}
+
+  def parse_line("dir " <> dir_name), do: {:dir, dir_name}
+
+  def parse_line(file_and_size) do
+    [size, file] = file_and_size |> String.split()
+    {:file, file, String.to_integer(size)}
+  end
+end
+
+test_input_lines = Parse.parse(test_input)
+```
+
+## Construct a file tree from the input
+
+```elixir
+defmodule FileTree do
+  def create_file_tree_from_input(input) do
+    initial_state = {[], %{}}
+
+    {_dir, tree} =
+      input
+      |> Enum.reduce(initial_state, &update_file_tree/2)
+
+    tree
+  end
+
+  def update_file_tree({:cd, "/"}, {_current_path, initial_tree}),
+    do: {[], initial_tree}
+
+  def update_file_tree({:cd, ".."}, {current_path, initial_tree}),
+    do: {current_path |> Enum.drop(-1), initial_tree}
+
+  def update_file_tree({:cd, path}, {current_path, initial_tree}),
+    do: {current_path ++ [path], initial_tree}
+
+  def update_file_tree({:ls}, initial_state), do: initial_state
+
+  def update_file_tree({:dir, dir_name}, {current_path, initial_tree}) do
+    {current_path, put_in(initial_tree, current_path ++ [dir_name], %{})}
+  end
+
+  def update_file_tree({:file, file_name, size}, {current_path, initial_tree}) do
+    {current_path, put_in(initial_tree, current_path ++ [file_name], size)}
+  end
+end
+
+test_file_tree = FileTree.create_file_tree_from_input(test_input_lines)
+```
+
+## Traverse the file tree to get a list of directory sizes
+
+```elixir
+defmodule DirSize do
+  def get_dir_sizes(contents, dir_name) do
+    {dir_sizes, _total_size} = get_sub_dirs_and_size({dir_name, contents})
+    dir_sizes
+  end
+
+  def get_sub_dirs_and_size({dir_name, contents}) when is_map(contents) do
+    {sub_dirs, size} =
+      contents
+      |> Map.to_list()
+      |> Enum.map(&get_sub_dirs_and_size/1)
+      |> Enum.reduce({[], 0}, fn {sub_dirs, size}, {total_sub_dirs, total_size} ->
+        {sub_dirs ++ total_sub_dirs, size + total_size}
+      end)
+
+    {[{dir_name, size} | sub_dirs], size}
+  end
+
+  def get_sub_dirs_and_size({_file_name, size}) when is_integer(size) do
+    {[], size}
+  end
+end
+
+test_dir_sizes = test_file_tree |> DirSize.get_dir_sizes("/")
+```
+
+## Solve part 1
+
+Sum size of all directories below 100000
+
+```elixir
+defmodule Solve1 do
+  def solve(dir_sizes) do
+    dir_sizes
+    |> Enum.map(fn {_name, size} -> size end)
+    |> Enum.filter(fn size -> size < 100_000 end)
+    |> Enum.sum()
+  end
+end
+
+test_dir_sizes |> Solve1.solve()
+```
+
+And with the real input:
+
+```elixir
+input
+|> Parse.parse()
+|> FileTree.create_file_tree_from_input()
+|> DirSize.get_dir_sizes("/")
+|> Solve1.solve()
+```
+
+## Part 2
+
+Calculate total size required using "/" directory size, then find first directory bigger than this.
+
+```elixir
+defmodule Solve2 do
+  def solve(dir_sizes) do
+    {"/", total_space_taken} = dir_sizes |> Enum.find(fn {name, _size} -> name == "/" end)
+    space_remaining = 70_000_000 - total_space_taken
+    extra_space_required = 30_000_000 - space_remaining
+
+    dir_sizes
+    |> Enum.map(fn {_name, size} -> size end)
+    |> Enum.sort()
+    |> Enum.find(fn size -> size >= extra_space_required end)
+  end
+end
+
+test_dir_sizes |> Solve2.solve()
+```
+
+And with the real input...
+
+```elixir
+dir_sizes =
+  input
+  |> Parse.parse()
+  |> FileTree.create_file_tree_from_input()
+  |> DirSize.get_dir_sizes("/")
+  |> Solve2.solve()
+```
