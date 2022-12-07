@@ -10,7 +10,6 @@ File.cd(Path.dirname(__ENV__.file))
 ```elixir
 input = File.read!("inputs/06.txt")
 testInput = "mjqjpqmgbljsphdztnvjfqwrcgsmlb"
-input
 ```
 
 ## Solve
