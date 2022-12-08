@@ -29,12 +29,12 @@ testGrid = testInput |> Parse.parse()
 
 ```elixir
 defmodule TreeVisibility do
-  def visible_from_right(grid) do
+  def visible_from_left(grid) do
     grid
-    |> Enum.map(&row_visible_from_right/1)
+    |> Enum.map(&row_visible_from_left/1)
   end
 
-  def row_visible_from_right(row) do
+  def row_visible_from_left(row) do
     row
     |> Enum.scan({nil, -1}, fn tree, {_, max_height} ->
       {tree > max_height, max(tree, max_height)}
@@ -46,24 +46,24 @@ defmodule TreeVisibility do
     Enum.zip_with(grid, & &1)
   end
 
-  def visible_from_left(grid) do
+  def visible_from_right(grid) do
     grid
     |> Enum.map(&Enum.reverse/1)
-    |> visible_from_right()
+    |> visible_from_left()
     |> Enum.map(&Enum.reverse/1)
   end
 
   def visible_from_top(grid) do
     grid
     |> transpose()
-    |> visible_from_right()
+    |> visible_from_left()
     |> transpose()
   end
 
   def visible_from_bottom(grid) do
     grid
     |> transpose()
-    |> visible_from_left()
+    |> visible_from_right()
     |> transpose()
   end
 
@@ -119,7 +119,7 @@ input
 
 ## Storing the trees in a map
 
-Indexed by {x, y} coord.
+Indexed by `{x, y}` coord.
 
 ```elixir
 defmodule GridToMap do
@@ -145,7 +145,7 @@ test_height_map = testGrid |> GridToMap.grid_to_map()
 And then finding the maximum for part 2 answer...
 
 ```elixir
-defmodule Solve do
+defmodule Solve2 do
   def solve(height_map) do
     height_map
     |> Map.keys()
@@ -183,7 +183,7 @@ defmodule Solve do
   end
 end
 
-Solve.solve(test_height_map)
+Solve2.solve(test_height_map)
 ```
 
 And finally with the real input...
@@ -192,5 +192,5 @@ And finally with the real input...
 input
 |> Parse.parse()
 |> GridToMap.grid_to_map()
-|> Solve.solve()
+|> Solve2.solve()
 ```
