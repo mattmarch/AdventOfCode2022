@@ -1,0 +1,196 @@
+# Day 8
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/08.txt")
+testInput = File.read!("inputs/test08.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&String.codepoints/1)
+    |> Enum.map(fn row -> row |> Enum.map(&String.to_integer/1) end)
+  end
+end
+
+testGrid = testInput |> Parse.parse()
+```
+
+## Working out tree visibility
+
+```elixir
+defmodule TreeVisibility do
+  def visible_from_right(grid) do
+    grid
+    |> Enum.map(&row_visible_from_right/1)
+  end
+
+  def row_visible_from_right(row) do
+    row
+    |> Enum.scan({nil, -1}, fn tree, {_, max_height} ->
+      {tree > max_height, max(tree, max_height)}
+    end)
+    |> Enum.map(fn {visible, _max} -> visible end)
+  end
+
+  def transpose(grid) do
+    Enum.zip_with(grid, & &1)
+  end
+
+  def visible_from_left(grid) do
+    grid
+    |> Enum.map(&Enum.reverse/1)
+    |> visible_from_right()
+    |> Enum.map(&Enum.reverse/1)
+  end
+
+  def visible_from_top(grid) do
+    grid
+    |> transpose()
+    |> visible_from_right()
+    |> transpose()
+  end
+
+  def visible_from_bottom(grid) do
+    grid
+    |> transpose()
+    |> visible_from_left()
+    |> transpose()
+  end
+
+  def visible_from_any_direction(grid) do
+    [
+      visible_from_left(grid),
+      visible_from_top(grid),
+      visible_from_right(grid),
+      visible_from_bottom(grid)
+    ]
+    |> Enum.zip()
+    |> Enum.map(&Tuple.to_list/1)
+    |> Enum.map(&Enum.zip/1)
+    |> Enum.map(&visible_from_any_direction_in_row/1)
+  end
+
+  def visible_from_any_direction_in_row(row) do
+    row
+    |> Enum.map(&Tuple.to_list/1)
+    |> Enum.map(&Enum.any?/1)
+  end
+end
+
+tree_visibilities = testGrid |> TreeVisibility.visible_from_any_direction()
+```
+
+## And count visible trees for part 1...
+
+```elixir
+defmodule Solve do
+  def visible_in_row(row) do
+    row |> Enum.count(&Function.identity/1)
+  end
+
+  def solve(visibility_grid) do
+    visibility_grid
+    |> Enum.map(&visible_in_row/1)
+    |> Enum.sum()
+  end
+end
+
+tree_visibilities |> Solve.solve()
+```
+
+With the real input...
+
+```elixir
+input
+|> Parse.parse()
+|> TreeVisibility.visible_from_any_direction()
+|> Solve.solve()
+```
+
+## Storing the trees in a map
+
+Indexed by {x, y} coord.
+
+```elixir
+defmodule GridToMap do
+  def grid_to_map(height_grid) do
+    height_grid
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {row, row_index} -> index_row(row_index, row) end)
+    |> Map.new()
+  end
+
+  def index_row(row_index, row) do
+    row
+    |> Enum.with_index()
+    |> Enum.map(fn {value, col_index} -> {{col_index, row_index}, value} end)
+  end
+end
+
+test_height_map = testGrid |> GridToMap.grid_to_map()
+```
+
+## Using the map to calculate tree scores
+
+And then finding the maximum for part 2 answer...
+
+```elixir
+defmodule Solve do
+  def solve(height_map) do
+    height_map
+    |> Map.keys()
+    |> Enum.map(fn coord -> get_tree_score(height_map, coord) end)
+    |> Enum.max()
+  end
+
+  def count_trees_in_direction(height_map, last_point, current_count, direction, max_height) do
+    next_coord = add_coords(last_point, direction)
+
+    case height_map |> Map.fetch(next_coord) do
+      {:ok, value} when value < max_height ->
+        count_trees_in_direction(height_map, next_coord, current_count + 1, direction, max_height)
+
+      {:ok, _} ->
+        current_count + 1
+
+      :error ->
+        current_count
+    end
+  end
+
+  def get_tree_score(height_map, tree_coord) do
+    tree_height = height_map |> Map.fetch!(tree_coord)
+
+    [{1, 0}, {0, -1}, {-1, 0}, {0, 1}]
+    |> Enum.map(fn dir ->
+      count_trees_in_direction(height_map, tree_coord, 0, dir, tree_height)
+    end)
+    |> Enum.product()
+  end
+
+  def add_coords({x1, y1}, {x2, y2}) do
+    {x1 + x2, y1 + y2}
+  end
+end
+
+Solve.solve(test_height_map)
+```
+
+And finally with the real input...
+
+```elixir
+input
+|> Parse.parse()
+|> GridToMap.grid_to_map()
+|> Solve.solve()
+```
