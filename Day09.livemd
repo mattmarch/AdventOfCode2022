@@ -1,0 +1,174 @@
+# Day 09
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/09.txt")
+testInput = File.read!("inputs/test09.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_line/1)
+  end
+
+  def parse_line("U " <> n), do: {:up, String.to_integer(n)}
+  def parse_line("R " <> n), do: {:right, String.to_integer(n)}
+  def parse_line("D " <> n), do: {:down, String.to_integer(n)}
+  def parse_line("L " <> n), do: {:left, String.to_integer(n)}
+end
+
+test_instructions = Parse.parse(testInput)
+```
+
+## Some coordinate helper functions
+
+```elixir
+defmodule Coords do
+  def add({x1, y1}, {x2, y2}) do
+    {x1 + x2, y1 + y2}
+  end
+
+  def move_in_direction({x, y}, :up), do: {x, y + 1}
+  def move_in_direction({x, y}, :right), do: {x + 1, y}
+  def move_in_direction({x, y}, :down), do: {x, y - 1}
+  def move_in_direction({x, y}, :left), do: {x - 1, y}
+end
+```
+
+## Solving part 1
+
+```elixir
+defmodule Solve do
+  def solve(instructions) do
+    all_moves = apply_instructions_rec(instructions, {0, 0}, {0, 0})
+    tail_positions = all_moves |> Enum.map(fn {_head, tail} -> tail end)
+
+    tail_positions
+    |> Enum.uniq()
+    |> Enum.count()
+  end
+
+  def apply_instructions_rec([], _head_pos, _tail_pos), do: []
+
+  def apply_instructions_rec(
+        [next_instruction | other_instructions],
+        head_position,
+        tail_position
+      ) do
+    moves_from_instruction = next_positions(head_position, tail_position, next_instruction)
+    [{result_head_position, result_tail_position} | _] = moves_from_instruction
+
+    apply_instructions_rec(other_instructions, result_head_position, result_tail_position) ++
+      moves_from_instruction
+  end
+
+  def next_positions(head_position, tail_position, {direction, steps}) do
+    next_head_position = get_next_head_position(direction, head_position)
+    next_tail_position = get_tail_position(next_head_position, tail_position)
+    remaining_steps = steps - 1
+
+    if remaining_steps == 0 do
+      [{next_head_position, next_tail_position}]
+    else
+      next_positions(next_head_position, next_tail_position, {direction, remaining_steps}) ++
+        [{next_head_position, next_tail_position}]
+    end
+  end
+
+  def get_next_head_position(direction, position) do
+    Coords.move_in_direction(position, direction)
+  end
+
+  def get_tail_position({head_x, head_y}, {tail_x, tail_y}) do
+    x_diff = head_x - tail_x
+    y_diff = head_y - tail_y
+
+    if abs(x_diff) <= 1 and abs(y_diff) <= 1 do
+      {tail_x, tail_y}
+    else
+      Coords.add({clamp_to_unit(x_diff), clamp_to_unit(y_diff)}, {tail_x, tail_y})
+    end
+  end
+
+  def clamp_to_unit(number) do
+    number |> min(1) |> max(-1)
+  end
+end
+
+Solve.solve(test_instructions)
+```
+
+With the real input...
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
+
+## Solving part 2
+
+Adapting the `next_positions` function in part 1 to keep track of an entire list of positions, and using `Enum.scan/3` to apply the function across the entire rope.
+
+_With a bonus `Solve2.solve_part_1/1` method to solve part 1 using the same algorithm as part 2._
+
+```elixir
+defmodule Solve2 do
+  def solve(instructions) do
+    solve(instructions, 10)
+  end
+
+  def solve_part_1(instructions) do
+    solve(instructions, 2)
+  end
+
+  def solve(instructions, rope_length) do
+    all_moves = apply_instructions_rec(instructions, List.duplicate({0, 0}, rope_length))
+    tail_positions = all_moves |> Enum.map(fn positions -> List.last(positions) end)
+
+    tail_positions
+    |> Enum.uniq()
+    |> Enum.count()
+  end
+
+  def apply_instructions_rec([], _positions), do: []
+
+  def apply_instructions_rec([next_instruction | other_instructions], positions) do
+    moves_from_instruction = next_positions(positions, next_instruction)
+    [result_positions | _] = moves_from_instruction
+    apply_instructions_rec(other_instructions, result_positions) ++ moves_from_instruction
+  end
+
+  def next_positions([head_position | tail_positions], {direction, steps}) do
+    next_head_position = Solve.get_next_head_position(direction, head_position)
+
+    next_tail_positions =
+      tail_positions
+      |> Enum.scan(next_head_position, fn tail, head -> Solve.get_tail_position(head, tail) end)
+
+    remaining_steps = steps - 1
+
+    if remaining_steps == 0 do
+      [[next_head_position | next_tail_positions]]
+    else
+      next_positions([next_head_position | next_tail_positions], {direction, remaining_steps}) ++
+        [[next_head_position | next_tail_positions]]
+    end
+  end
+end
+
+test_instructions |> Solve2.solve()
+```
+
+Finally try it with the real input...
+
+```elixir
+input |> Parse.parse() |> Solve2.solve()
+```
