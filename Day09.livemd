@@ -121,17 +121,17 @@ _With a bonus `Solve2.solve_part_1/1` method to solve part 1 using the same algo
 
 ```elixir
 defmodule Solve2 do
-  def solve(instructions) do
-    solve(instructions, 10)
-  end
-
   def solve_part_1(instructions) do
     solve(instructions, 2)
   end
 
+  def solve(instructions) do
+    solve(instructions, 10)
+  end
+
   def solve(instructions, rope_length) do
     all_moves = apply_instructions_rec(instructions, List.duplicate({0, 0}, rope_length))
-    tail_positions = all_moves |> Enum.map(fn positions -> List.last(positions) end)
+    tail_positions = all_moves |> Enum.map(&List.last/1)
 
     tail_positions
     |> Enum.uniq()
