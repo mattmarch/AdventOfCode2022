@@ -3,6 +3,11 @@
 ```elixir
 # Change working directory to this file's directory.
 File.cd(Path.dirname(__ENV__.file))
+
+Mix.install([
+  {:vega_lite, "~> 0.1.6"},
+  {:kino_vega_lite, "~> 0.1.7"}
+])
 ```
 
 ## Parse input
@@ -96,4 +101,34 @@ Finally part 2 with the real input
 input
 |> Solve2.solve()
 |> Enum.map(&IO.puts/1)
+```
+
+## Plotting part 1 for fun
+
+```elixir
+alias VegaLite, as: Vl
+```
+
+```elixir
+x_values = input |> Solve.get_all_x_values()
+
+signal =
+  x_values
+  |> Enum.with_index(1)
+  |> Enum.map(&Tuple.product/1)
+
+Vl.new()
+|> Vl.data_from_values(x: x_values, signal: signal, cycle: 1..Enum.count(x_values))
+|> Vl.concat([
+  Vl.new(width: 300, height: 300)
+  |> Vl.data_from_values(x: x_values, signal: signal, cycle: 1..Enum.count(x_values))
+  |> Vl.encode_field(:x, "cycle", type: :quantitative)
+  |> Vl.encode_field(:y, "x", type: :quantitative)
+  |> Vl.mark(:line),
+  Vl.new(width: 300, height: 300)
+  |> Vl.data_from_values(x: x_values, signal: signal, cycle: 1..Enum.count(x_values))
+  |> Vl.encode_field(:x, "cycle", type: :quantitative)
+  |> Vl.encode_field(:y, "signal", type: :quantitative)
+  |> Vl.mark(:line)
+])
 ```
