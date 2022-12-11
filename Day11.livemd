@@ -1,0 +1,268 @@
+# Day 11
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/11.txt")
+testInput = File.read!("inputs/test11.txt")
+```
+
+## Monkey struct and parsing logic
+
+```elixir
+defmodule Monkey do
+  defstruct [:items, :operation, :test_divisor, :if_true, :if_false]
+
+  def parse(monkey_notes) do
+    [_, items_line, operation_line, condition_line, if_true_line, if_false_line] =
+      monkey_notes |> String.split("\n")
+
+    [_, item_list] = items_line |> String.split(": ")
+    items = item_list |> String.split(", ") |> Enum.map(&String.to_integer/1)
+
+    operation =
+      operation_line
+      |> String.split()
+      |> Enum.reverse()
+      |> Enum.take(3)
+      |> parse_operation()
+
+    %Monkey{
+      items: items,
+      operation: operation,
+      test_divisor: get_int_at_line_end(condition_line),
+      if_true: get_int_at_line_end(if_true_line),
+      if_false: get_int_at_line_end(if_false_line)
+    }
+  end
+
+  def parse_all(all_monkey_notes) do
+    all_monkey_notes
+    |> String.split("\n\n")
+    |> Enum.map(&parse/1)
+  end
+
+  def get_int_at_line_end(line) do
+    line
+    |> String.split()
+    |> List.last()
+    |> String.to_integer()
+  end
+
+  def parse_operation(["old", "*", "old"]), do: {:square}
+  def parse_operation([num, "*", "old"]), do: {:multiply, String.to_integer(num)}
+  def parse_operation([num, "+", "old"]), do: {:plus, String.to_integer(num)}
+end
+
+test_monkey_start = testInput |> Monkey.parse_all()
+```
+
+## Logic for playing out turns and rounds
+
+```elixir
+defmodule Turn do
+  def play_rounds(initial_monkeys, num_rounds) do
+    play_rounds_rec(num_rounds, [{0, initial_monkeys}])
+    |> Enum.drop(1)
+  end
+
+  def play_rounds_rec(rounds_remaining, states_so_far) do
+    updated_states = play_monkey_round(states_so_far)
+
+    if rounds_remaining - 1 == 0 do
+      updated_states
+    else
+      play_rounds_rec(rounds_remaining - 1, updated_states)
+    end
+  end
+
+  def play_monkey_round([this_round | previous_rounds]) do
+    {i, monkeys} = this_round
+    updated_monkey_state = play_monkey_turn(monkeys, i)
+    next_round_number = rem(i + 1, Enum.count(monkeys))
+    updated_rounds = [{next_round_number, updated_monkey_state}, this_round | previous_rounds]
+
+    if next_round_number == 0 do
+      updated_rounds
+    else
+      play_monkey_round(updated_rounds)
+    end
+  end
+
+  def play_monkey_turn(monkeys, monkey_index) do
+    items_thrown =
+      monkeys
+      |> Enum.at(monkey_index)
+      |> inspect_all_items()
+      |> Enum.group_by(fn {i, _v} -> i end, fn {_i, v} -> v end)
+      |> Map.to_list()
+
+    items_thrown
+    |> Enum.reduce(monkeys, fn {to, items}, monkeys ->
+      give_to_monkey_at_position(monkeys, to, items)
+    end)
+    |> List.update_at(monkey_index, fn monkey -> %Monkey{monkey | items: []} end)
+  end
+
+  def give_to_monkey_at_position(monkeys, position, items) do
+    monkeys
+    |> List.update_at(position, fn monkey -> %Monkey{monkey | items: monkey.items ++ items} end)
+  end
+
+  def inspect_all_items(monkey) do
+    monkey.items
+    |> Enum.map(fn item -> inspect_item(item, monkey) end)
+  end
+
+  def inspect_item(item, %Monkey{
+        operation: operation,
+        test_divisor: test_divisor,
+        if_true: if_true,
+        if_false: if_false
+      }) do
+    new_worry_level = item |> perform_operation(operation) |> div(3)
+
+    if rem(new_worry_level, test_divisor) == 0 do
+      {if_true, new_worry_level}
+    else
+      {if_false, new_worry_level}
+    end
+  end
+
+  def perform_operation(worry_level, {:square}), do: worry_level * worry_level
+  def perform_operation(worry_level, {:multiply, num}), do: worry_level * num
+  def perform_operation(worry_level, {:plus, num}), do: worry_level + num
+end
+
+test_rounds = Turn.play_rounds(test_monkey_start, 20)
+```
+
+## Solve part 1
+
+Go from a list of the states at the beginning of turn to total number items thrown by each monkey to the solution...
+
+```elixir
+defmodule Solve do
+  def solve(all_rounds) do
+    monkey_item_counts_per_round =
+      all_rounds
+      |> Enum.group_by(fn {turn, _states} -> turn end, fn {turn, states} ->
+        count_items_for_monkey(states, turn)
+      end)
+
+    monkey_item_counts_per_round
+    |> Map.values()
+    |> Enum.map(&Enum.sum/1)
+    |> Enum.sort(:desc)
+    |> Enum.take(2)
+    |> Enum.product()
+  end
+
+  def count_items_for_monkey(monkeys, monkey_index) do
+    %Monkey{items: items} = monkeys |> Enum.at(monkey_index)
+    items |> Enum.count()
+  end
+end
+
+test_rounds |> Solve.solve()
+```
+
+```elixir
+input |> Monkey.parse_all() |> Turn.play_rounds(20) |> Solve.solve()
+```
+
+## Part 2
+
+```elixir
+# Calculate a "product of divisors" for all the monkeys to hardcode
+divisor_product =
+  input
+  |> Monkey.parse_all()
+  |> Enum.map(fn %Monkey{test_divisor: divisor} -> divisor end)
+  |> Enum.product()
+
+IO.puts(divisor_product)
+
+defmodule Turn2 do
+  def play_rounds(initial_monkeys, num_rounds) do
+    play_rounds_rec(num_rounds, [{0, initial_monkeys}])
+    |> Enum.drop(1)
+  end
+
+  def play_rounds_rec(rounds_remaining, states_so_far) do
+    updated_states = play_monkey_round(states_so_far)
+
+    if rounds_remaining - 1 == 0 do
+      updated_states
+    else
+      play_rounds_rec(rounds_remaining - 1, updated_states)
+    end
+  end
+
+  def play_monkey_round([this_round | previous_rounds]) do
+    {i, monkeys} = this_round
+    updated_monkey_state = play_monkey_turn(monkeys, i)
+    next_round_number = rem(i + 1, Enum.count(monkeys))
+    updated_rounds = [{next_round_number, updated_monkey_state}, this_round | previous_rounds]
+
+    if next_round_number == 0 do
+      updated_rounds
+    else
+      play_monkey_round(updated_rounds)
+    end
+  end
+
+  def play_monkey_turn(monkeys, monkey_index) do
+    items_thrown =
+      monkeys
+      |> Enum.at(monkey_index)
+      |> inspect_all_items()
+      |> Enum.group_by(fn {i, _v} -> i end, fn {_i, v} -> v end)
+      |> Map.to_list()
+
+    items_thrown
+    |> Enum.reduce(monkeys, fn {to, items}, monkeys ->
+      give_to_monkey_at_position(monkeys, to, items)
+    end)
+    |> List.update_at(monkey_index, fn monkey -> %Monkey{monkey | items: []} end)
+  end
+
+  def give_to_monkey_at_position(monkeys, position, items) do
+    monkeys
+    |> List.update_at(position, fn monkey -> %Monkey{monkey | items: monkey.items ++ items} end)
+  end
+
+  def inspect_all_items(monkey) do
+    monkey.items
+    |> Enum.map(fn item -> inspect_item(item, monkey) end)
+  end
+
+  def inspect_item(item, %Monkey{
+        operation: operation,
+        test_divisor: test_divisor,
+        if_true: if_true,
+        if_false: if_false
+      }) do
+    new_worry_level = item |> Turn.perform_operation(operation) |> rem(9_699_690)
+
+    if rem(new_worry_level, test_divisor) == 0 do
+      {if_true, new_worry_level}
+    else
+      {if_false, new_worry_level}
+    end
+  end
+end
+```
+
+```elixir
+test_monkey_start |> Turn2.play_rounds(10000) |> Solve.solve()
+```
+
+```elixir
+input |> Monkey.parse_all() |> Turn2.play_rounds(10000) |> Solve.solve()
+```
