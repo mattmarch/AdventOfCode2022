@@ -12,13 +12,19 @@ input = File.read!("inputs/12.txt")
 test_input = File.read!("inputs/test12.txt")
 ```
 
+## Parsing the grid
+
+Into a `Map` of `{x,y}` to `GridPoint` structs which store the level and the result of walking the grid.
+
+Note we're starting at the end instead of the finish - this wasn't the original implementation but doing it this way makes part 2 easy.
+
 ```elixir
 defmodule GridPoint do
   defstruct [:level, :reached_from, visited: false]
 end
 
 defmodule Parse do
-  def parse_point("S"), do: %GridPoint{level: "S", reached_from: {:start, 0}}
+  def parse_point("E"), do: %GridPoint{level: "E", reached_from: {:start, 0}}
   def parse_point(level), do: %GridPoint{level: level}
 
   def parse_row({row, y_index}) do
@@ -39,6 +45,8 @@ end
 
 test_grid = test_input |> Parse.parse()
 ```
+
+## Logic to determine if one square is reachable from another
 
 ```elixir
 defmodule Reachable do
@@ -65,6 +73,10 @@ true = Reachable.reachable?("x", "a")
 false = Reachable.reachable?("g", "i")
 ```
 
+## Logic to traverse the grid and calculate the minimum steps
+
+This was originally implemented from start to finish, but I swapped this to make it easy to solve part 2.
+
 ```elixir
 defmodule Traverse do
   def traverse(grid) do
@@ -72,7 +84,7 @@ defmodule Traverse do
       grid
       |> visit_squares()
       |> Map.values()
-      |> Enum.find(fn %GridPoint{level: level} -> level == "E" end)
+      |> Enum.find(fn %GridPoint{level: level} -> level == "S" end)
 
     steps
   end
@@ -110,7 +122,7 @@ defmodule Traverse do
   def try_update_square(coord, grid, steps, from_coord, from_level) do
     case grid |> Map.fetch(coord) do
       {:ok, grid_point} ->
-        if grid_point.reached_from == nil and Reachable.reachable?(from_level, grid_point.level) do
+        if grid_point.reached_from == nil and Reachable.reachable?(grid_point.level, from_level) do
           {coord, %GridPoint{grid_point | reached_from: {from_coord, steps}}}
         end
 
@@ -123,6 +135,34 @@ end
 test_grid |> Traverse.traverse()
 ```
 
+Part 1 with the real input:
+
 ```elixir
 input |> Parse.parse() |> Traverse.traverse()
+```
+
+## Solving part 2
+
+Reusing the `visit_squares` function from above to store the steps to each square. Doing it in reverse means we just need to find the closest `"a"` level...
+
+```elixir
+defmodule Part2 do
+  def solve(traversed_grid) do
+    traversed_grid
+    |> Map.values()
+    |> Enum.filter(fn %GridPoint{level: level, visited: visited} ->
+      level in ["a", "S"] and visited
+    end)
+    |> Enum.map(fn %GridPoint{reached_from: {_c, steps}} -> steps end)
+    |> Enum.min()
+  end
+end
+
+test_grid |> Traverse.visit_squares() |> Part2.solve()
+```
+
+Finally with the real input:
+
+```elixir
+input |> Parse.parse() |> Traverse.visit_squares() |> Part2.solve()
 ```
