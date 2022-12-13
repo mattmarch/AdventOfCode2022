@@ -94,3 +94,45 @@ With the real input...
 ```elixir
 input |> Parse.parse() |> Solve.solve()
 ```
+
+## Part 2
+
+1. `Enum.concat` all the pairs together into a flat list
+2. Also add in the _divider packets_
+3. Sort by the `Pairs.correct_order?` function in part 1
+4. Find the location of the divider packets and multiply indices
+
+```elixir
+defmodule Solve2 do
+  @divider_packets [[[2]], [[6]]]
+
+  def solve(pairs) do
+    sorted_packets =
+      pairs
+      |> Enum.concat()
+      |> Enum.concat(@divider_packets)
+      |> sort_packets()
+
+    @divider_packets
+    |> Enum.map(fn packet -> get_packet_index(sorted_packets, packet) end)
+    |> Enum.product()
+  end
+
+  def get_packet_index(packets, target) do
+    1 + (packets |> Enum.find_index(fn p -> p == target end))
+  end
+
+  def sort_packets(packets) do
+    packets
+    |> Enum.sort(&Pairs.correct_order?/2)
+  end
+end
+
+test_pairs |> Solve2.solve()
+```
+
+With the real input...
+
+```elixir
+input |> Parse.parse() |> Solve2.solve()
+```
