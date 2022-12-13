@@ -42,8 +42,8 @@ Lots of function pattern matching
 ```elixir
 defmodule Pairs do
   def correct_order?([], []), do: nil
-  def correct_order?([_l_head | _l_tail], []), do: false
-  def correct_order?([], [_r_head | _r_tail]), do: true
+  def correct_order?(l, []) when is_list(l), do: false
+  def correct_order?([], r) when is_list(r), do: true
 
   def correct_order?([l_head | l_tail], [r_head | r_tail])
       when is_list(l_head) and is_list(r_head) do
