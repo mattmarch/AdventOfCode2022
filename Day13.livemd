@@ -1,0 +1,94 @@
+# Day 13
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+
+Mix.install([{:jason, "~> 1.4"}])
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/13.txt")
+test_input = File.read!("inputs/test13.txt")
+```
+
+Hard work is done using `Jason.decode`.
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n\n")
+    |> Enum.map(&parse_pair/1)
+  end
+
+  def parse_pair(pair_string) do
+    pair_string
+    |> String.split("\n")
+    |> Enum.map(&Jason.decode/1)
+    |> Enum.map(fn {:ok, res} -> res end)
+  end
+end
+
+test_pairs = test_input |> Parse.parse()
+```
+
+## Determine if pairs are in the correct order
+
+Lots of function pattern matching
+
+```elixir
+defmodule Pairs do
+  def correct_order?([], []), do: nil
+  def correct_order?([_l_head | _l_tail], []), do: false
+  def correct_order?([], [_r_head | _r_tail]), do: true
+
+  def correct_order?([l_head | l_tail], [r_head | r_tail])
+      when is_list(l_head) and is_list(r_head) do
+    case correct_order?(l_head, r_head) do
+      nil -> correct_order?(l_tail, r_tail)
+      result -> result
+    end
+  end
+
+  def correct_order?([l_head | l_tail], [r_head | r_tail]) when is_list(l_head) do
+    correct_order?([l_head | l_tail], [[r_head] | r_tail])
+  end
+
+  def correct_order?([l_head | l_tail], [r_head | r_tail]) when is_list(r_head) do
+    correct_order?([[l_head] | l_tail], [r_head | r_tail])
+  end
+
+  def correct_order?([l_head | l_tail], [r_head | r_tail]) when l_head == r_head do
+    correct_order?(l_tail, r_tail)
+  end
+
+  def correct_order?([l_head | _], [r_head | _]), do: l_head < r_head
+end
+
+test_pairs
+|> Enum.map(fn [l, r] -> Pairs.correct_order?(l, r) end)
+```
+
+```elixir
+defmodule Solve do
+  def solve(pairs) do
+    pairs
+    |> Enum.map(fn [l, r] -> Pairs.correct_order?(l, r) end)
+    |> Enum.with_index(1)
+    |> Enum.filter(fn {correct?, _i} -> correct? end)
+    |> Enum.map(fn {true, i} -> i end)
+    |> Enum.sum()
+  end
+end
+
+test_pairs |> Solve.solve()
+```
+
+With the real input...
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
