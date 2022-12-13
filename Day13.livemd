@@ -65,7 +65,9 @@ defmodule Pairs do
     correct_order?(l_tail, r_tail)
   end
 
-  def correct_order?([l_head | _], [r_head | _]), do: l_head < r_head
+  def correct_order?([l_head | _], [r_head | _]) do
+    l_head < r_head
+  end
 end
 
 test_pairs
