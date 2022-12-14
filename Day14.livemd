@@ -1,0 +1,163 @@
+# Day 14
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/14.txt")
+test_input = File.read!("inputs/test14.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_line/1)
+    |> Enum.reduce(&Map.merge/2)
+  end
+
+  def parse_line(line) do
+    line
+    |> String.split(" -> ")
+    |> Enum.map(&parse_coord/1)
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.flat_map(&points_in_range/1)
+    |> Enum.map(fn c -> {c, :rock} end)
+    |> Map.new()
+  end
+
+  def parse_coord(coord) do
+    [x, y] =
+      coord
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
+
+    {x, y}
+  end
+
+  def points_in_range([{x1, y1}, {x2, y2}]) do
+    # This is actually a cartesian product so will produce weird results if lines
+    # aren't all vertical/horizontal!
+    for x <- x1..x2, y <- y1..y2 do
+      {x, y}
+    end
+  end
+end
+
+test_caves = test_input |> Parse.parse()
+```
+
+## Solve part 1
+
+```elixir
+defmodule Solve do
+  @sand_source {500, 0}
+
+  def solve(cave_map) do
+    add_all_sand(cave_map, get_max_depth(cave_map))
+    |> Map.values()
+    |> Enum.count(fn type -> type == :sand end)
+  end
+
+  def get_max_depth(cave_map) do
+    cave_map
+    |> Map.keys()
+    |> Enum.map(fn {_x, y} -> y end)
+    |> Enum.max()
+  end
+
+  def add_all_sand(cave_map, max_depth) do
+    case add_sand(cave_map, @sand_source, max_depth) do
+      :void -> cave_map
+      updated_map -> add_all_sand(updated_map, max_depth)
+    end
+  end
+
+  def add_sand(cave_map, {x, y}, max_depth) do
+    if y > max_depth do
+      :void
+    else
+      case get_spaces_below(cave_map, {x, y}) do
+        [_, :error, _] -> add_sand(cave_map, {x, y + 1}, max_depth)
+        [:error, _, _] -> add_sand(cave_map, {x - 1, y + 1}, max_depth)
+        [_, _, :error] -> add_sand(cave_map, {x + 1, y + 1}, max_depth)
+        _ -> cave_map |> Map.put({x, y}, :sand)
+      end
+    end
+  end
+
+  def get_spaces_below(cave_map, {x, y}) do
+    [{x - 1, y + 1}, {x, y + 1}, {x + 1, y + 1}]
+    |> Enum.map(fn c -> Map.fetch(cave_map, c) end)
+  end
+end
+
+test_caves |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
+
+## Part 2
+
+Modify part 1 solution to handle `max_depth` (now `floor_depth`) differently. Terminate on `@sand_source` being populated rather than sand dropping into the void.
+
+```elixir
+defmodule Solve2 do
+  @sand_source {500, 0}
+
+  def solve(cave_map) do
+    add_all_sand(cave_map, get_floor_depth(cave_map))
+    |> Map.values()
+    |> Enum.count(fn type -> type == :sand end)
+  end
+
+  def get_floor_depth(cave_map) do
+    1 +
+      (cave_map
+       |> Map.keys()
+       |> Enum.map(fn {_x, y} -> y end)
+       |> Enum.max())
+  end
+
+  def add_all_sand(cave_map, floor_depth) do
+    updated_map = add_sand(cave_map, @sand_source, floor_depth)
+
+    if updated_map |> Map.has_key?(@sand_source) do
+      updated_map
+    else
+      add_all_sand(updated_map, floor_depth)
+    end
+  end
+
+  def add_sand(cave_map, {x, y}, floor_depth) do
+    if y == floor_depth do
+      cave_map |> Map.put({x, y}, :sand)
+    else
+      case get_spaces_below(cave_map, {x, y}) do
+        [_, :error, _] -> add_sand(cave_map, {x, y + 1}, floor_depth)
+        [:error, _, _] -> add_sand(cave_map, {x - 1, y + 1}, floor_depth)
+        [_, _, :error] -> add_sand(cave_map, {x + 1, y + 1}, floor_depth)
+        _ -> cave_map |> Map.put({x, y}, :sand)
+      end
+    end
+  end
+
+  def get_spaces_below(cave_map, {x, y}) do
+    [{x - 1, y + 1}, {x, y + 1}, {x + 1, y + 1}]
+    |> Enum.map(fn c -> Map.fetch(cave_map, c) end)
+  end
+end
+
+test_caves |> Solve2.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Solve2.solve()
+```
