@@ -135,18 +135,22 @@ defmodule Solve2 do
   def solve(sensors_and_beacons, {min_limit, max_limit}) do
     {y, ranges_in_row} =
       min_limit..max_limit
-      |> Enum.map(fn y -> {y, Solve.get_ranges_covered_in_row(sensors_and_beacons, y)} end)
-      |> Enum.map(fn {y, ranges} ->
-        {y, clamp_ranges_in_limits(ranges, {min_limit, max_limit})}
+      |> Enum.map(fn y ->
+        {y, get_ranges_clamped(sensors_and_beacons, y, {min_limit, max_limit})}
       end)
       |> Enum.find(fn {_y, ranges} -> Enum.count(ranges) > 1 end)
 
     {^min_limit, end_of_first_range} =
       ranges_in_row
-      |> Enum.sort_by(fn {range_start, _range_end} -> range_start end)
-      |> hd()
+      |> Enum.min_by(fn {range_start, _range_end} -> range_start end)
 
     y + 4_000_000 * (end_of_first_range + 1)
+  end
+
+  def get_ranges_clamped(sensors_and_beacons, y, limits) do
+    sensors_and_beacons
+    |> Solve.get_ranges_covered_in_row(y)
+    |> clamp_ranges_in_limits(limits)
   end
 
   def clamp_ranges_in_limits(ranges, limits) do
