@@ -1,0 +1,121 @@
+# Day 16
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/16.txt")
+test_input = File.read!("inputs/test16.txt")
+```
+
+```elixir
+defmodule Valve do
+  defstruct [:name, :flow_rate, :tunnels]
+
+  def parse_all(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_line/1)
+  end
+
+  def parse_line(line) do
+    [name_and_flow_rate, tunnel_string] = line |> String.split("; ")
+    tunnels = parse_tunnels(tunnel_string)
+    {valve_name, flow_rate} = parse_name_and_flow_rate(name_and_flow_rate)
+    %Valve{name: valve_name, flow_rate: flow_rate, tunnels: tunnels}
+  end
+
+  def parse_tunnels("tunnels lead to valves " <> tunnel_list) do
+    tunnel_list |> String.split(", ")
+  end
+
+  def parse_tunnels("tunnel leads to valve " <> tunnel) do
+    [tunnel]
+  end
+
+  def parse_name_and_flow_rate(name_and_flow_rate_string) do
+    ["Valve", valve_name, "has", "flow", "rate=" <> flow_rate] =
+      name_and_flow_rate_string |> String.split()
+
+    {valve_name, String.to_integer(flow_rate)}
+  end
+end
+
+test_valves = test_input |> Valve.parse_all()
+```
+
+```elixir
+defmodule ValveDistance do
+  defstruct [:distance, :visited, :valve]
+
+  def get_all_valve_map(valve_list) do
+    valve_list
+    |> get_active_valves()
+    |> Enum.map(fn active_valve ->
+      {active_valve.name, get_distances_from_valve(active_valve.name, valve_list)}
+    end)
+  end
+
+  def get_active_valves(valve_list) do
+    valve_list
+    |> Enum.filter(fn %Valve{flow_rate: flow_rate} -> flow_rate > 0 end)
+  end
+
+  def get_distances_from_valve(from_valve, valve_list) do
+    valve_list
+    |> Enum.map(fn valve ->
+      {valve.name, %ValveDistance{distance: nil, visited: false, valve: valve}}
+    end)
+    |> Map.new()
+    |> Map.update!(from_valve, fn valve_distance ->
+      %ValveDistance{valve_distance | distance: 0}
+    end)
+    |> update_distances()
+    |> Map.values()
+    |> Enum.filter(fn %ValveDistance{valve: valve} ->
+      valve.flow_rate > 0 and valve.name != from_valve
+    end)
+    |> Map.new(fn valve_distance -> {valve_distance.valve.name, valve_distance.distance} end)
+  end
+
+  def update_distances(valve_distance_map) do
+    next_valve_distance =
+      valve_distance_map
+      |> Map.values()
+      |> Enum.filter(fn valve_distance ->
+        not valve_distance.visited and valve_distance.distance != nil
+      end)
+      |> Enum.min_by(fn valve_distance -> valve_distance.distance end)
+
+    updated_map =
+      next_valve_distance.valve.tunnels
+      |> Enum.map(fn valve_name -> Map.fetch!(valve_distance_map, valve_name) end)
+      |> Enum.filter(fn valve_distance -> valve_distance.distance == nil end)
+      |> Enum.map(fn valve_distance ->
+        %ValveDistance{valve_distance | distance: next_valve_distance.distance + 1}
+      end)
+      |> Enum.reduce(valve_distance_map, fn valve_distance, map ->
+        map |> Map.put(valve_distance.valve.name, valve_distance)
+      end)
+      |> Map.update!(next_valve_distance.valve.name, fn valve_distance ->
+        %ValveDistance{valve_distance | visited: true}
+      end)
+
+    if all_completed?(updated_map) do
+      updated_map
+    else
+      update_distances(updated_map)
+    end
+  end
+
+  def all_completed?(valve_distance_map) do
+    valve_distance_map |> Map.values() |> Enum.all?(fn vd -> vd.visited end)
+  end
+end
+
+ValveDistance.get_all_valve_map(test_valves)
+```
