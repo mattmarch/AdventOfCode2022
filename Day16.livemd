@@ -122,12 +122,7 @@ defmodule VisitValves do
     valve_distance_map = ValveDistance.get_all_valve_map(valve_list, start_point)
     valves = active_valves |> Map.new(fn v -> {v.name, v} end)
 
-    active_valves
-    |> Enum.map(fn v -> v.name end)
-    |> Enum.map(fn v ->
-      visit_next_valves(start_point, v, [], 0, 30, valve_distance_map, valves)
-    end)
-    |> Enum.max()
+    try_visit_all_unvisited_valves(start_point, [], 0, 30, valve_distance_map, valves)
   end
 
   def visit_next_valves(
@@ -150,22 +145,40 @@ defmodule VisitValves do
       pressure_released_after_valve = pressure_released + total_pressure_released_from_valve
       updated_visited_valves = [next_valve | visited_valves]
 
-      valves
-      |> Map.keys()
-      |> Enum.filter(fn v -> v not in updated_visited_valves end)
-      |> Enum.map(fn v ->
-        visit_next_valves(
-          next_valve,
-          v,
-          updated_visited_valves,
-          pressure_released_after_valve,
-          time_remaining_after_valve,
-          distance_map,
-          valves
-        )
-      end)
-      |> Enum.max(fn -> pressure_released_after_valve end)
+      try_visit_all_unvisited_valves(
+        next_valve,
+        updated_visited_valves,
+        pressure_released_after_valve,
+        time_remaining_after_valve,
+        distance_map,
+        valves
+      )
     end
+  end
+
+  def try_visit_all_unvisited_valves(
+        last_valve,
+        visited_valves,
+        pressure_released,
+        time_remaining,
+        distance_map,
+        valves
+      ) do
+    valves
+    |> Map.keys()
+    |> Enum.filter(fn v -> v not in visited_valves end)
+    |> Enum.map(fn v ->
+      visit_next_valves(
+        last_valve,
+        v,
+        visited_valves,
+        pressure_released,
+        time_remaining,
+        distance_map,
+        valves
+      )
+    end)
+    |> Enum.max(fn -> pressure_released end)
   end
 end
 
