@@ -52,17 +52,12 @@ test_valves = test_input |> Valve.parse_all()
 defmodule ValveDistance do
   defstruct [:distance, :visited, :valve]
 
-  def get_all_valve_map(valve_list) do
+  def get_all_valve_map(valve_list, start_valve) do
     valve_list
-    |> get_active_valves()
-    |> Enum.map(fn active_valve ->
+    |> Enum.filter(fn valve -> valve.flow_rate > 0 or valve.name == start_valve end)
+    |> Map.new(fn active_valve ->
       {active_valve.name, get_distances_from_valve(active_valve.name, valve_list)}
     end)
-  end
-
-  def get_active_valves(valve_list) do
-    valve_list
-    |> Enum.filter(fn %Valve{flow_rate: flow_rate} -> flow_rate > 0 end)
   end
 
   def get_distances_from_valve(from_valve, valve_list) do
@@ -117,5 +112,66 @@ defmodule ValveDistance do
   end
 end
 
-ValveDistance.get_all_valve_map(test_valves)
+ValveDistance.get_all_valve_map(test_valves, "AA")
+```
+
+```elixir
+defmodule VisitValves do
+  def visit_all_valves(valve_list, start_point) do
+    active_valves = valve_list |> Enum.filter(fn valve -> valve.flow_rate > 0 end)
+    valve_distance_map = ValveDistance.get_all_valve_map(valve_list, start_point)
+    valves = active_valves |> Map.new(fn v -> {v.name, v} end)
+
+    active_valves
+    |> Enum.map(fn v -> v.name end)
+    |> Enum.map(fn v ->
+      visit_next_valves(start_point, v, [], 0, 30, valve_distance_map, valves)
+    end)
+    |> Enum.max()
+  end
+
+  def visit_next_valves(
+        previous_valve,
+        next_valve,
+        visited_valves,
+        pressure_released,
+        time_remaining,
+        distance_map,
+        valves
+      ) do
+    distance = distance_map |> Map.fetch!(previous_valve) |> Map.fetch!(next_valve)
+    time_remaining_after_valve = time_remaining - distance - 1
+
+    if time_remaining_after_valve <= 0 do
+      pressure_released
+    else
+      %Valve{flow_rate: valve_flow_rate} = valves |> Map.fetch!(next_valve)
+      total_pressure_released_from_valve = time_remaining_after_valve * valve_flow_rate
+      pressure_released_after_valve = pressure_released + total_pressure_released_from_valve
+      updated_visited_valves = [next_valve | visited_valves]
+
+      valves
+      |> Map.keys()
+      |> Enum.filter(fn v -> v not in updated_visited_valves end)
+      |> Enum.map(fn v ->
+        visit_next_valves(
+          next_valve,
+          v,
+          updated_visited_valves,
+          pressure_released_after_valve,
+          time_remaining_after_valve,
+          distance_map,
+          valves
+        )
+      end)
+      |> Enum.max(fn -> pressure_released_after_valve end)
+    end
+  end
+end
+
+test_valves |> VisitValves.visit_all_valves("AA")
+```
+
+```elixir
+input |> Valve.parse_all() |> VisitValves.visit_all_valves("AA")
 ```
