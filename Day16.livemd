@@ -48,6 +48,8 @@ end
 test_valves = test_input |> Valve.parse_all()
 ```
 
+## Use Dijkstra to find the shortest path between all the "active" valves
+
 ```elixir
 defmodule ValveDistance do
   defstruct [:distance, :visited, :valve]
@@ -115,14 +117,22 @@ end
 ValveDistance.get_all_valve_map(test_valves, "AA")
 ```
 
+## Using the distance map calculated above, recursively try all combinations of the "active" valves
+
 ```elixir
 defmodule VisitValves do
-  def visit_all_valves(valve_list, start_point) do
+  def solve(valve_list, start_point, total_time) do
+    visit_all_valves(valve_list, start_point, total_time)
+    |> Enum.map(fn {pressure, _visited} -> pressure end)
+    |> Enum.max()
+  end
+
+  def visit_all_valves(valve_list, start_point, total_time) do
     active_valves = valve_list |> Enum.filter(fn valve -> valve.flow_rate > 0 end)
     valve_distance_map = ValveDistance.get_all_valve_map(valve_list, start_point)
     valves = active_valves |> Map.new(fn v -> {v.name, v} end)
 
-    try_visit_all_unvisited_valves(start_point, [], 0, 30, valve_distance_map, valves)
+    try_visit_all_unvisited_valves(start_point, [], 0, total_time, valve_distance_map, valves)
   end
 
   def visit_next_valves(
@@ -138,7 +148,7 @@ defmodule VisitValves do
     time_remaining_after_valve = time_remaining - distance - 1
 
     if time_remaining_after_valve <= 0 do
-      pressure_released
+      [{pressure_released, visited_valves}]
     else
       %Valve{flow_rate: valve_flow_rate} = valves |> Map.fetch!(next_valve)
       total_pressure_released_from_valve = time_remaining_after_valve * valve_flow_rate
@@ -164,27 +174,60 @@ defmodule VisitValves do
         distance_map,
         valves
       ) do
-    valves
-    |> Map.keys()
-    |> Enum.filter(fn v -> v not in visited_valves end)
-    |> Enum.map(fn v ->
-      visit_next_valves(
-        last_valve,
-        v,
-        visited_valves,
-        pressure_released,
-        time_remaining,
-        distance_map,
-        valves
-      )
-    end)
-    |> Enum.max(fn -> pressure_released end)
+    [
+      {pressure_released, visited_valves}
+      | valves
+        |> Map.keys()
+        |> Enum.filter(fn v -> v not in visited_valves end)
+        |> Enum.flat_map(fn v ->
+          visit_next_valves(
+            last_valve,
+            v,
+            visited_valves,
+            pressure_released,
+            time_remaining,
+            distance_map,
+            valves
+          )
+        end)
+    ]
   end
 end
 
-test_valves |> VisitValves.visit_all_valves("AA")
+test_valves |> VisitValves.solve("AA", 30)
 ```
 
 ```elixir
-input |> Valve.parse_all() |> VisitValves.visit_all_valves("AA")
+input |> Valve.parse_all() |> VisitValves.solve("AA", 30)
+```
+
+## Part 2
+
+Find all possible routes, find the best route that goes through a given set of valves, do cartesian product with itself and find the highest combination of disjoint routes.
+
+```elixir
+defmodule Solve2 do
+  def solve(valve_list, start_point, total_time) do
+    all_routes =
+      VisitValves.visit_all_valves(valve_list, start_point, total_time)
+      |> Enum.map(fn {pressure, route} -> {pressure, MapSet.new(route)} end)
+
+    best_routes =
+      all_routes
+      |> Enum.group_by(fn {_p, r} -> r end, fn {p, _r} -> p end)
+      |> Map.to_list()
+      |> Enum.map(fn {route, pressures} -> {route, Enum.max(pressures)} end)
+
+    possible_pressures =
+      for {r1, p1} <- best_routes, {r2, p2} <- best_routes, MapSet.disjoint?(r1, r2), do: p1 + p2
+
+    possible_pressures |> Enum.max()
+  end
+end
+
+test_valves |> Solve2.solve("AA", 26)
+```
+
+```elixir
+input |> Valve.parse_all() |> Solve2.solve("AA", 26)
 ```
