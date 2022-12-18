@@ -1,0 +1,247 @@
+# Day 17
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/17.txt") |> String.codepoints()
+test_input = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>" |> String.codepoints()
+```
+
+```elixir
+defmodule RockShape do
+  def to_coords(rock_shape_string) do
+    rock_shape_string
+    |> String.split("\n")
+    |> Enum.reverse()
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, y} -> line_to_coord(line, y) end)
+  end
+
+  def line_to_coord(line, y) do
+    line
+    |> String.codepoints()
+    |> Enum.with_index()
+    |> Enum.filter(fn {c, _x} -> c == "#" end)
+    |> Enum.map(fn {_c, x} -> {x, y} end)
+  end
+end
+```
+
+```elixir
+rock_shapes =
+  [
+    """
+
+    ####
+
+    """,
+    """
+
+    .#.
+    ###
+    .#.
+
+    """,
+    """
+
+    ..#
+    ..#
+    ###
+
+    """,
+    """
+
+    #
+    #
+    #
+    #
+
+    """,
+    """
+
+    ##
+    ##
+
+    """
+  ]
+  |> Enum.map(&String.trim/1)
+  |> Enum.map(&RockShape.to_coords/1)
+```
+
+```elixir
+defmodule Inputs do
+  def get_rock(rock_shapes, i) do
+    rock_shapes_length = rock_shapes |> Enum.count()
+    rock_shapes |> Enum.at(rem(i, rock_shapes_length))
+  end
+
+  def get_jet_pattern(jet_patterns, i) do
+    jet_patterns_length = jet_patterns |> Enum.count()
+
+    case jet_patterns |> Enum.at(rem(i, jet_patterns_length)) do
+      "<" -> :left
+      ">" -> :right
+    end
+  end
+end
+
+Inputs.get_rock(rock_shapes, 3) |> IO.inspect()
+Inputs.get_jet_pattern(test_input, 3) |> IO.inspect()
+```
+
+```elixir
+defmodule RockFall do
+  @left_side 0
+  @right_side 6
+
+  def solve(rock_shapes, jet_patterns, total_rocks) do
+    add_rocks(rock_shapes, jet_patterns, MapSet.new(), 0, 0, 0, total_rocks)
+  end
+
+  def add_rocks(
+        rock_shapes,
+        jet_patterns,
+        rock_positions,
+        max_height,
+        step,
+        rock_index,
+        rocks_remaining
+      ) do
+    {updated_rock_positions, next_height, next_step} =
+      add_new_rock(rock_shapes, jet_patterns, rock_positions, max_height, step, rock_index)
+
+    if rocks_remaining == 1 do
+      {updated_rock_positions, next_height, next_step}
+    else
+      add_rocks(
+        rock_shapes,
+        jet_patterns,
+        updated_rock_positions,
+        next_height,
+        next_step,
+        rock_index + 1,
+        rocks_remaining - 1
+      )
+    end
+  end
+
+  def add_new_rock(
+        rock_shapes,
+        jet_patterns,
+        fallen_rock_positions,
+        max_height,
+        step_index,
+        rock_index
+      ) do
+    next_rock =
+      Inputs.get_rock(rock_shapes, rock_index)
+      |> Enum.map(fn c -> c |> add_coord({2, 3 + max_height}) end)
+
+    move_sideways(fallen_rock_positions, next_rock, jet_patterns, step_index)
+  end
+
+  def move_sideways(fallen_rock_positions, current_rock_positions, jet_patterns, step_index) do
+    direction =
+      case Inputs.get_jet_pattern(jet_patterns, step_index) do
+        :left -> {-1, 0}
+        :right -> {1, 0}
+      end
+
+    new_rock_positions = current_rock_positions |> Enum.map(fn c -> c |> add_coord(direction) end)
+
+    if new_rock_positions |> Enum.any?(fn p -> sideways_overlap?(fallen_rock_positions, p) end) do
+      move_down(fallen_rock_positions, current_rock_positions, jet_patterns, step_index + 1)
+    else
+      move_down(fallen_rock_positions, new_rock_positions, jet_patterns, step_index + 1)
+    end
+  end
+
+  def move_down(fallen_rock_positions, current_rock_positions, jet_patterns, step_index) do
+    new_rock_positions = current_rock_positions |> Enum.map(fn p -> p |> add_coord({0, -1}) end)
+
+    if not (new_rock_positions
+            |> Enum.any?(fn p -> down_overlap?(fallen_rock_positions, p) end)) do
+      move_sideways(fallen_rock_positions, new_rock_positions, jet_patterns, step_index)
+    else
+      new_max_height = current_rock_positions |> Enum.map(fn {_x, y} -> y end) |> Enum.max()
+
+      updated_fallen_rock_positions =
+        current_rock_positions |> MapSet.new() |> MapSet.union(fallen_rock_positions)
+
+      {updated_fallen_rock_positions, new_max_height + 1, step_index}
+    end
+  end
+
+  def sideways_overlap?(fallen_rock_positions, coord) do
+    hits_edges?(coord) or hits_fallen_rocks?(fallen_rock_positions, coord)
+  end
+
+  def down_overlap?(fallen_rock_positions, {x, y}) do
+    hits_fallen_rocks?(fallen_rock_positions, {x, y}) or y < 0
+  end
+
+  def hits_edges?({x, _y}) do
+    x < @left_side or x > @right_side
+  end
+
+  def hits_fallen_rocks?(fallen_rock_positions, rock_position) do
+    fallen_rock_positions |> MapSet.member?(rock_position)
+  end
+
+  def add_coord({x1, y1}, {x2, y2}) do
+    {x1 + x2, y1 + y2}
+  end
+end
+
+{test_pattern, test_max_height, _} = RockFall.solve(rock_shapes, test_input, 2022)
+```
+
+## Printing the fallen rocks for debugging
+
+```elixir
+defmodule Visualise do
+  def visualise(rock_map, y_range) do
+    get_row_strings(rock_map, y_range)
+    |> Enum.each(&IO.puts/1)
+  end
+
+  def get_row_strings(rock_map, {y_start, y_end}) do
+    y_start..y_end
+    |> Enum.reverse()
+    |> Enum.map(fn y -> get_row_string(rock_map, y) end)
+  end
+
+  def get_row_string(rock_map, y) do
+    0..6
+    |> Enum.map(fn x -> if rock_map |> MapSet.member?({x, y}), do: "#", else: "." end)
+    |> Enum.join()
+  end
+end
+
+Visualise.visualise(test_pattern, {2000, 3000})
+```
+
+Write the expected test output to a file
+
+```elixir
+file = File.open!("test_output_17.txt", [:write])
+
+test_pattern_output =
+  test_pattern
+  |> Visualise.get_row_strings({0, 3000})
+  |> Enum.join("\n")
+
+IO.binwrite(file, test_pattern_output)
+```
+
+With the real input...
+
+```elixir
+{fallen_rocks, height, _step} = RockFall.solve(rock_shapes, input, 2022)
+height
+```
