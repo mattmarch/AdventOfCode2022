@@ -33,6 +33,8 @@ test_coords =
   |> Parse.parse()
 ```
 
+## Part 1
+
 ```elixir
 defmodule Solve do
   def solve(coords) do
@@ -68,6 +70,70 @@ test_coords |> Solve.solve()
 input |> Parse.parse() |> Solve.solve()
 ```
 
+## Part 2
+
 ```elixir
-input |> Parse.parse() |> Enum.count()
+defmodule Solve2 do
+  def solve(cube_coords) do
+    surroundings = cube_coords |> get_surroundings()
+
+    cube_coords
+    |> Enum.map(fn c -> get_exposed_faces(c, surroundings) end)
+    |> Enum.sum()
+  end
+
+  def get_exposed_faces(cube_coord, coord_map) do
+    cube_coord
+    |> Solve.get_adjacent_coords()
+    |> Enum.count(fn c -> Map.fetch(coord_map, c) == {:ok, :outside} end)
+  end
+
+  def get_surroundings(cube_coords) do
+    limits = get_limits(cube_coords)
+    coord_map = cube_coords |> Map.new(fn c -> {c, :cube} end)
+    {{x_min, _}, {y_min, _}, {z_min, _}} = limits
+    get_surroundings({x_min, y_min, z_min}, limits, coord_map)
+  end
+
+  def get_surroundings(from_coord, limits, coord_map) do
+    empty_neighbours =
+      from_coord
+      |> Solve.get_adjacent_coords()
+      |> Enum.filter(fn c -> inside_limits?(c, limits) end)
+      |> Enum.filter(fn c -> not Map.has_key?(coord_map, c) end)
+
+    updated_map =
+      empty_neighbours
+      |> Enum.reduce(coord_map, fn c, map -> map |> Map.put(c, :outside) end)
+
+    empty_neighbours
+    |> Enum.reduce(updated_map, fn c, map -> get_surroundings(c, limits, map) end)
+  end
+
+  def inside_limits?({x, y, z}, {x_limits, y_limits, z_limits}) do
+    inside_range?(x, x_limits) and inside_range?(y, y_limits) and inside_range?(z, z_limits)
+  end
+
+  def inside_range?(v, {v_min, v_max}) do
+    v >= v_min and v <= v_max
+  end
+
+  def get_limits(coord_list) do
+    {x_min, x_max} = coord_list |> Enum.map(fn {x, _y, _z} -> x end) |> Enum.min_max()
+    {y_min, y_max} = coord_list |> Enum.map(fn {_x, y, _z} -> y end) |> Enum.min_max()
+    {z_min, z_max} = coord_list |> Enum.map(fn {_x, _y, z} -> z end) |> Enum.min_max()
+
+    {
+      {x_min - 1, x_max + 1},
+      {y_min - 1, y_max + 1},
+      {z_min - 1, z_max + 1}
+    }
+  end
+end
+
+test_coords |> Solve2.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Solve2.solve()
 ```
