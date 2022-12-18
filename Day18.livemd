@@ -73,6 +73,12 @@ input |> Parse.parse() |> Solve.solve()
 ## Part 2
 
 ```elixir
+input |> Parse.parse() |> Enum.map(fn {x, _, _} -> x end) |> Enum.min_max()
+```
+
+Since all the input cubes are all in a relatively small range (0 -> 20), we can take a volume slightly bigger than the volume containing the squares, and recursively find all the empty cubes exterior to the lava droplets. Then we can find all the cube faces that touch these exterior empty cubes.
+
+```elixir
 defmodule Solve2 do
   def solve(cube_coords) do
     surroundings = cube_coords |> get_surroundings()
