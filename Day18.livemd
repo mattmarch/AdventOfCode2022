@@ -1,0 +1,73 @@
+# Day 18
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/18.txt")
+test_input = File.read!("inputs/test18.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse_coord(coord_line) do
+    coord_line
+    |> String.split(",")
+    |> Enum.map(&String.to_integer/1)
+    |> List.to_tuple()
+  end
+
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_coord/1)
+  end
+end
+
+test_coords =
+  test_input
+  |> Parse.parse()
+```
+
+```elixir
+defmodule Solve do
+  def solve(coords) do
+    coord_set = coords |> MapSet.new()
+
+    coords
+    |> Enum.map(fn c -> get_exposed_faces(c, coord_set) end)
+    |> Enum.sum()
+  end
+
+  def get_exposed_faces(cube_coord, coord_set) do
+    cube_coord
+    |> get_adjacent_coords()
+    |> Enum.count(fn c -> not MapSet.member?(coord_set, c) end)
+  end
+
+  def get_adjacent_coords({x, y, z}) do
+    [
+      {x + 1, y, z},
+      {x - 1, y, z},
+      {x, y + 1, z},
+      {x, y - 1, z},
+      {x, y, z + 1},
+      {x, y, z - 1}
+    ]
+  end
+end
+
+test_coords |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Enum.count()
+```
