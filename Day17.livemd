@@ -12,6 +12,8 @@ input = File.read!("inputs/17.txt") |> String.codepoints()
 test_input = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>" |> String.codepoints()
 ```
 
+## Dealing with parsing the rock shapes
+
 ```elixir
 defmodule RockShape do
   def to_coords(rock_shape_string) do
@@ -73,6 +75,8 @@ rock_shapes =
   |> Enum.map(&RockShape.to_coords/1)
 ```
 
+## Getting jet pattern and rock shapes given indices
+
 ```elixir
 defmodule Inputs do
   def get_rock(rock_shapes, i) do
@@ -92,6 +96,50 @@ end
 
 Inputs.get_rock(rock_shapes, 3) |> IO.inspect()
 Inputs.get_jet_pattern(test_input, 3) |> IO.inspect()
+```
+
+## Printing rock patterns to screen
+
+Used for debugging below...
+
+```elixir
+defmodule Visualise do
+  def visualise(rock_map, y_range) do
+    visualise(rock_map, MapSet.new(), y_range)
+  end
+
+  def visualise(rock_map, current_rock_map, y_range) do
+    get_row_strings(rock_map, current_rock_map, y_range)
+    |> Enum.each(&IO.puts/1)
+  end
+
+  def get_row_strings(rock_map, y_range) do
+    get_row_strings(rock_map, MapSet.new(), y_range)
+  end
+
+  def get_row_strings(rock_map, current_rock_map, {y_start, y_end}) do
+    y_start..y_end
+    |> Enum.reverse()
+    |> Enum.map(fn y -> get_row_string(rock_map, current_rock_map, y) end)
+  end
+
+  def get_row_string(rock_map, current_rock_map, y) do
+    0..6
+    |> Enum.map(fn x -> get_char(rock_map, current_rock_map, {x, y}) end)
+    |> Enum.join()
+  end
+
+  def get_char(rock_map, current_rock_map, coord) do
+    case {MapSet.member?(rock_map, coord), MapSet.member?(current_rock_map, coord)} do
+      {true, true} -> "!"
+      {true, false} -> "#"
+      {false, true} -> "@"
+      {false, false} -> "."
+    end
+  end
+end
+
+# Visualise.visualise( {0, 40})
 ```
 
 ```elixir
@@ -116,13 +164,13 @@ defmodule RockFall do
       add_new_rock(rock_shapes, jet_patterns, rock_positions, max_height, step, rock_index)
 
     if rocks_remaining == 1 do
-      {updated_rock_positions, next_height, next_step}
+      {updated_rock_positions, max(next_height, max_height), next_step}
     else
       add_rocks(
         rock_shapes,
         jet_patterns,
         updated_rock_positions,
-        next_height,
+        max(next_height, max_height),
         next_step,
         rock_index + 1,
         rocks_remaining - 1
@@ -141,6 +189,9 @@ defmodule RockFall do
     next_rock =
       Inputs.get_rock(rock_shapes, rock_index)
       |> Enum.map(fn c -> c |> add_coord({2, 3 + max_height}) end)
+
+    # IO.puts("\n")
+    # Visualise.visualise(fallen_rock_positions, next_rock |> MapSet.new(), {max_height - 5, max_height + 7})
 
     move_sideways(fallen_rock_positions, next_rock, jet_patterns, step_index)
   end
@@ -201,43 +252,9 @@ end
 {test_pattern, test_max_height, _} = RockFall.solve(rock_shapes, test_input, 2022)
 ```
 
-## Printing the fallen rocks for debugging
-
-```elixir
-defmodule Visualise do
-  def visualise(rock_map, y_range) do
-    get_row_strings(rock_map, y_range)
-    |> Enum.each(&IO.puts/1)
-  end
-
-  def get_row_strings(rock_map, {y_start, y_end}) do
-    y_start..y_end
-    |> Enum.reverse()
-    |> Enum.map(fn y -> get_row_string(rock_map, y) end)
-  end
-
-  def get_row_string(rock_map, y) do
-    0..6
-    |> Enum.map(fn x -> if rock_map |> MapSet.member?({x, y}), do: "#", else: "." end)
-    |> Enum.join()
-  end
-end
-
-Visualise.visualise(test_pattern, {2000, 3000})
-```
-
 Write the expected test output to a file
 
-```elixir
-file = File.open!("test_output_17.txt", [:write])
-
-test_pattern_output =
-  test_pattern
-  |> Visualise.get_row_strings({0, 3000})
-  |> Enum.join("\n")
-
-IO.binwrite(file, test_pattern_output)
-```
+<!-- livebook:{"break_markdown":true} -->
 
 With the real input...
 
