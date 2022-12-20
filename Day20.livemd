@@ -24,34 +24,41 @@ end
 test_ciphertext = Parse.parse(test_input)
 ```
 
-## Run the mix/decrypt
+## Run mixing/decrypting
+
+Including the ability to run the process multiple times (part 2).
 
 ```elixir
 defmodule Decrypt do
-  def decrypt(ciphertext) do
+  def decrypt(ciphertext), do: decrypt(ciphertext, 1)
+
+  def decrypt(ciphertext, total_mixes) do
     ciphertext
-    |> Enum.map(fn n -> {false, n} end)
-    |> decrypt_next_chars(0, Enum.count(ciphertext))
-    |> Enum.map(fn {true, n} -> n end)
+    |> Enum.with_index()
+    |> apply_n_times(fn t -> decrypt_next_chars(t, 0, Enum.count(ciphertext)) end, total_mixes)
+    |> Enum.map(fn {n, _i} -> n end)
+  end
+
+  def apply_n_times(input, fun, n) do
+    1..n
+    |> Enum.reduce(input, fn _i, acc -> fun.(acc) end)
   end
 
   def decrypt_next_chars(ciphertext, current_index, length) when current_index >= length,
     do: ciphertext
 
   def decrypt_next_chars(ciphertext, current_index, length) do
-    {moved, digit} = ciphertext |> Enum.at(current_index)
-
-    if moved do
-      decrypt_next_chars(ciphertext, current_index + 1, length)
-    else
-      new_position = positive_rem(digit + current_index, length - 1)
-      next_index = if new_position <= current_index, do: current_index + 1, else: current_index
-
+    {{digit, ^current_index}, value_index} =
       ciphertext
-      |> List.delete_at(current_index)
-      |> List.insert_at(new_position, {true, digit})
-      |> decrypt_next_chars(next_index, length)
-    end
+      |> Enum.with_index()
+      |> Enum.find(fn {{_, i}, _} -> i == current_index end)
+
+    new_position = positive_rem(digit + value_index, length - 1)
+
+    ciphertext
+    |> List.delete_at(value_index)
+    |> List.insert_at(new_position, {digit, current_index})
+    |> decrypt_next_chars(current_index + 1, length)
   end
 
   def positive_rem(dividend, base) do
@@ -84,4 +91,26 @@ test_ciphertext |> Decrypt.decrypt() |> Solve.solve()
 
 ```elixir
 input |> Parse.parse() |> Decrypt.decrypt() |> Solve.solve()
+```
+
+## Solving part 2
+
+Multiply each value by the _decryption key_ and run 10 iterations (of the modified solving code).
+
+```elixir
+defmodule Part2 do
+  @decryption_key 811_589_153
+
+  def decrypt_with_key(ciphertext) do
+    ciphertext
+    |> Enum.map(fn n -> n * @decryption_key end)
+    |> Decrypt.decrypt(10)
+  end
+end
+
+test_ciphertext |> Part2.decrypt_with_key() |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Part2.decrypt_with_key() |> Solve.solve()
 ```
