@@ -1,0 +1,87 @@
+# Day 20
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/20.txt")
+test_input = File.read!("inputs/test20.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&String.to_integer/1)
+  end
+end
+
+test_ciphertext = Parse.parse(test_input)
+```
+
+## Run the mix/decrypt
+
+```elixir
+defmodule Decrypt do
+  def decrypt(ciphertext) do
+    ciphertext
+    |> Enum.map(fn n -> {false, n} end)
+    |> decrypt_next_chars(0, Enum.count(ciphertext))
+    |> Enum.map(fn {true, n} -> n end)
+  end
+
+  def decrypt_next_chars(ciphertext, current_index, length) when current_index >= length,
+    do: ciphertext
+
+  def decrypt_next_chars(ciphertext, current_index, length) do
+    {moved, digit} = ciphertext |> Enum.at(current_index)
+
+    if moved do
+      decrypt_next_chars(ciphertext, current_index + 1, length)
+    else
+      new_position = positive_rem(digit + current_index, length - 1)
+      next_index = if new_position <= current_index, do: current_index + 1, else: current_index
+
+      ciphertext
+      |> List.delete_at(current_index)
+      |> List.insert_at(new_position, {true, digit})
+      |> decrypt_next_chars(next_index, length)
+    end
+  end
+
+  def positive_rem(dividend, base) do
+    rem(rem(dividend, base) + base, base)
+  end
+end
+
+Decrypt.decrypt(test_ciphertext)
+```
+
+## Get the answer from the decrypted message
+
+```elixir
+defmodule Solve do
+  @answer_positions [1000, 2000, 3000]
+
+  def solve(plaintext) do
+    zero_position = plaintext |> Enum.find_index(fn n -> n == 0 end)
+    plaintext_length = plaintext |> Enum.count()
+
+    @answer_positions
+    |> Enum.map(fn p -> rem(p + zero_position, plaintext_length) end)
+    |> Enum.map(fn p -> plaintext |> Enum.at(p) end)
+    |> Enum.sum()
+  end
+end
+
+test_ciphertext |> Decrypt.decrypt() |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Decrypt.decrypt() |> Solve.solve()
+```
