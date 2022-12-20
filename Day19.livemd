@@ -1,0 +1,194 @@
+# Day 19
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/19.txt")
+test_input = File.read!("inputs/test19.txt")
+```
+
+```elixir
+defmodule Quantities do
+  defstruct ore: 0, clay: 0, obsidian: 0, geodes: 0
+
+  def add(a, b) do
+    %Quantities{
+      ore: a.ore + b.ore,
+      clay: a.clay + b.clay,
+      obsidian: a.obsidian + b.obsidian,
+      geodes: a.geodes + b.geodes
+    }
+  end
+
+  def subtract(minuend, subtrahend) do
+    %Quantities{
+      ore: minuend.ore - subtrahend.ore,
+      clay: minuend.clay - subtrahend.clay,
+      obsidian: minuend.obsidian - subtrahend.obsidian,
+      geodes: minuend.geodes - subtrahend.geodes
+    }
+  end
+
+  def negative?(quantities) do
+    quantities
+    |> Map.values()
+    |> Enum.any?(fn q -> q < 0 end)
+  end
+
+  def maximum(quantities_enum) do
+    quantities_enum
+    |> Enum.reduce(fn q, a -> Quantities.maximum(q, a) end)
+  end
+
+  def maximum(a, b) do
+    %Quantities{
+      ore: max(a.ore, b.ore),
+      clay: max(a.clay, b.clay),
+      obsidian: max(a.obsidian, b.obsidian),
+      geodes: max(a.geodes, b.geodes)
+    }
+  end
+end
+
+defmodule Blueprint do
+  defstruct [:number, :ore_cost, :clay_cost, :obsidian_cost, :geode_cost]
+
+  def parse_all(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_single/1)
+  end
+
+  def parse_single(line) do
+    ["Blueprint " <> number, costs] = line |> String.split(": ")
+
+    [ore_cost, clay_cost, obsidian_cost, geode_cost] =
+      costs
+      |> String.split(".")
+      |> Enum.drop(-1)
+      |> Enum.map(&parse_cost/1)
+
+    %Blueprint{
+      number: String.to_integer(number),
+      ore_cost: ore_cost,
+      clay_cost: clay_cost,
+      obsidian_cost: obsidian_cost,
+      geode_cost: geode_cost
+    }
+  end
+
+  def parse_cost(cost_statement) do
+    [_, materials] = cost_statement |> String.split(" costs ")
+
+    materials
+    |> String.split(" and ")
+    |> Enum.reduce(
+      %Quantities{},
+      &parse_material/2
+    )
+  end
+
+  def parse_material(material_string, cost_acc) do
+    [number, material] =
+      material_string
+      |> String.split()
+
+    case material do
+      "ore" -> %Quantities{cost_acc | ore: String.to_integer(number)}
+      "clay" -> %Quantities{cost_acc | clay: String.to_integer(number)}
+      "obsidian" -> %Quantities{cost_acc | obsidian: String.to_integer(number)}
+    end
+  end
+end
+
+test_blueprints = test_input |> Blueprint.parse_all()
+```
+
+```elixir
+defmodule Simulation do
+  def run(blueprint, time) do
+    run_steps(
+      blueprint,
+      get_maximum_robots_per_type(blueprint),
+      %Quantities{ore: 1},
+      %Quantities{},
+      time
+    )
+  end
+
+  def run_steps(blueprint, maximums, robots, materials, remaining) do
+    if remaining == 0 do
+      [{materials, robots}]
+    else
+      [:none, :ore, :clay, :obsidian, :geodes]
+      |> Enum.filter(fn t -> maximum_robot_type_not_reached(t, robots, maximums) end)
+      |> Enum.map(fn type -> type |> try_build_robot(materials, blueprint) end)
+      |> Enum.filter(fn b -> b != nil end)
+      |> Enum.map(fn {type, remaining_materials} ->
+        run_minute(robots, remaining_materials, type)
+      end)
+      |> Enum.flat_map(fn {next_robots, next_materials} ->
+        run_steps(blueprint, maximums, next_robots, next_materials, remaining - 1)
+      end)
+
+      # |> Enum.max_by(fn quantities -> quantities.geodes end)
+    end
+  end
+
+  def maximum_robot_type_not_reached(robot_type, robots, maximums) do
+    Map.get(robots, robot_type) <= Map.get(maximums, robot_type)
+  end
+
+  def get_maximum_robots_per_type(blueprint) do
+    blueprint
+    |> Map.from_struct()
+    |> Map.drop([:number])
+    |> Map.values()
+    |> Quantities.maximum()
+  end
+
+  def try_build_robot(:none, materials, _blueprint) do
+    {:none, materials}
+  end
+
+  def try_build_robot(robot_type, materials, blueprint) do
+    cost = robot_cost(robot_type, blueprint)
+    remaining_materials = materials |> Quantities.subtract(cost)
+
+    if remaining_materials |> Quantities.negative?() do
+      nil
+    else
+      {robot_type, remaining_materials}
+    end
+  end
+
+  def robot_cost(:ore, blueprint), do: blueprint.ore_cost
+  def robot_cost(:clay, blueprint), do: blueprint.clay_cost
+  def robot_cost(:obsidian, blueprint), do: blueprint.obsidian_cost
+  def robot_cost(:geodes, blueprint), do: blueprint.geode_cost
+
+  def run_minute(robots, materials, build_robot_type) do
+    {
+      robots |> build_robot(build_robot_type),
+      materials |> harvest_materials(robots)
+    }
+  end
+
+  def build_robot(robots, :none), do: robots
+
+  def build_robot(robots, robot_type) do
+    robots |> Map.update!(robot_type, fn n -> n + 1 end)
+  end
+
+  def harvest_materials(materials, robots) do
+    materials |> Quantities.add(robots)
+  end
+end
+
+Simulation.run(test_blueprints |> hd, 15)
+```
