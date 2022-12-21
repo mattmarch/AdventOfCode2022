@@ -1,0 +1,154 @@
+# Day 21
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/21.txt")
+test_input = File.read!("inputs/test21.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_line/1)
+    |> Map.new()
+  end
+
+  def parse_line(line) do
+    [name, job] = line |> String.split(": ")
+
+    if job |> String.contains?(" ") do
+      {name, parse_calculation_job(job)}
+    else
+      {name, String.to_integer(job)}
+    end
+  end
+
+  def parse_calculation_job(job) do
+    [monkey1, operator_string, monkey2] = job |> String.split(" ")
+
+    operator =
+      case operator_string do
+        "+" -> :plus
+        "-" -> :subtract
+        "*" -> :multiply
+        "/" -> :divide
+      end
+
+    {operator, monkey1, monkey2}
+  end
+end
+
+test_monkeys = test_input |> Parse.parse()
+```
+
+## Solving part 1
+
+This seemed suspiciously easy...
+
+```elixir
+defmodule Solve do
+  def solve(monkeys, target_monkey) do
+    case monkeys |> Map.fetch!(target_monkey) do
+      {:plus, monkey1, monkey2} -> solve(monkeys, monkey1) + solve(monkeys, monkey2)
+      {:subtract, monkey1, monkey2} -> solve(monkeys, monkey1) - solve(monkeys, monkey2)
+      {:multiply, monkey1, monkey2} -> solve(monkeys, monkey1) * solve(monkeys, monkey2)
+      {:divide, monkey1, monkey2} -> div(solve(monkeys, monkey1), solve(monkeys, monkey2))
+      i -> i
+    end
+  end
+end
+
+test_monkeys |> Solve.solve("root")
+```
+
+```elixir
+input |> Parse.parse() |> Solve.solve("root")
+```
+
+## Part 2
+
+Given a starting monkey (`"root"`) and a human monkey (`"humn"`) create a chain of calculations, either solving it if there are no unknowns (no human in the chain), or adding a layer.
+
+```elixir
+defmodule OperationChain do
+  def get_operation_chain(_monkeys, target_monkey, human) when target_monkey == human, do: :human
+
+  def get_operation_chain(monkeys, target_monkey, human) do
+    case monkeys |> Map.fetch!(target_monkey) do
+      i when is_integer(i) -> i
+      job -> get_job_result(monkeys, job, human)
+    end
+  end
+
+  def get_job_result(monkeys, {operator, lh_monkey, rh_monkey}, human) do
+    lh_monkey_result = monkeys |> get_operation_chain(lh_monkey, human)
+    rh_monkey_result = monkeys |> get_operation_chain(rh_monkey, human)
+
+    if is_integer(lh_monkey_result) and is_integer(rh_monkey_result) do
+      case operator do
+        :plus -> lh_monkey_result + rh_monkey_result
+        :subtract -> lh_monkey_result - rh_monkey_result
+        :multiply -> lh_monkey_result * rh_monkey_result
+        :divide -> div(lh_monkey_result, rh_monkey_result)
+      end
+    else
+      {operator, lh_monkey_result, rh_monkey_result}
+    end
+  end
+end
+
+test_operation_chain = test_monkeys |> OperationChain.get_operation_chain("root", "humn")
+```
+
+Given the operation chain above, for each level reverse the operation and move down to the next level.
+
+```elixir
+defmodule Solve2 do
+  def solve(operation_chain) do
+    {target_value, operations} =
+      case operation_chain do
+        {_, chain, value} when is_integer(value) -> {value, chain}
+        {_, value, chain} when is_integer(value) -> {value, chain}
+      end
+
+    reverse_operations(target_value, operations)
+  end
+
+  def reverse_operations(result, :human), do: result
+
+  def reverse_operations(result, {operator, lhs, rhs}) when is_integer(lhs) do
+    case operator do
+      :plus -> reverse_operations(result - lhs, rhs)
+      :subtract -> reverse_operations(lhs - result, rhs)
+      :multiply -> reverse_operations(div(result, lhs), rhs)
+      :divide -> reverse_operations(div(lhs, result), rhs)
+    end
+  end
+
+  def reverse_operations(result, {operator, lhs, rhs}) when is_integer(rhs) do
+    case operator do
+      :plus -> reverse_operations(result - rhs, lhs)
+      :subtract -> reverse_operations(result + rhs, lhs)
+      :multiply -> reverse_operations(div(result, rhs), lhs)
+      :divide -> reverse_operations(result * rhs, lhs)
+    end
+  end
+end
+
+test_operation_chain |> Solve2.solve()
+```
+
+```elixir
+input
+|> Parse.parse()
+|> OperationChain.get_operation_chain("root", "humn")
+|> Solve2.solve()
+```
