@@ -138,8 +138,6 @@ defmodule Visualise do
     end
   end
 end
-
-# Visualise.visualise( {0, 40})
 ```
 
 ```elixir
@@ -149,6 +147,10 @@ defmodule RockFall do
 
   def solve(rock_shapes, jet_patterns, total_rocks) do
     add_rocks(rock_shapes, jet_patterns, MapSet.new(), 0, 0, 0, total_rocks)
+  end
+
+  def add_rocks(_rock_shapes, _jet_patterns, rock_positions, max_height, step, _rock_index, 0) do
+    {rock_positions, max_height, step}
   end
 
   def add_rocks(
@@ -163,19 +165,15 @@ defmodule RockFall do
     {updated_rock_positions, next_height, next_step} =
       add_new_rock(rock_shapes, jet_patterns, rock_positions, max_height, step, rock_index)
 
-    if rocks_remaining == 1 do
-      {updated_rock_positions, max(next_height, max_height), next_step}
-    else
-      add_rocks(
-        rock_shapes,
-        jet_patterns,
-        updated_rock_positions,
-        max(next_height, max_height),
-        next_step,
-        rock_index + 1,
-        rocks_remaining - 1
-      )
-    end
+    add_rocks(
+      rock_shapes,
+      jet_patterns,
+      updated_rock_positions,
+      max(next_height, max_height),
+      next_step,
+      rock_index + 1,
+      rocks_remaining - 1
+    )
   end
 
   def add_new_rock(
@@ -252,13 +250,93 @@ end
 {test_pattern, test_max_height, _} = RockFall.solve(rock_shapes, test_input, 2022)
 ```
 
-Write the expected test output to a file
-
-<!-- livebook:{"break_markdown":true} -->
-
 With the real input...
 
 ```elixir
-{fallen_rocks, height, _step} = RockFall.solve(rock_shapes, input, 2022)
+{_fallen_rocks, height, _step} = RockFall.solve(rock_shapes, input, 2022)
 height
+```
+
+## Part 2
+
+Save the top 30 (number picked out of thin air) rows after each rock, and look for repeats of the same row pattern and indices into jet patterns/rocks... Then do some maths on number of loops/height per loop/steps into loop to calculate 1,000,000,000,000 rocks.
+
+```elixir
+defmodule Part2 do
+  @rows_to_track 30
+
+  def solve(rock_shapes, jet_patterns, total_rocks) do
+    {loop_state_key, loop_end_height, loop_end_index, states} =
+      add_rocks_until_loop(rock_shapes, jet_patterns, MapSet.new(), 0, 0, 0, Map.new())
+
+    {loop_start_height, loop_start_index} = states |> Map.fetch!(loop_state_key)
+    loop_length = loop_end_index - loop_start_index
+    loop_height_gain = loop_end_height - loop_start_height
+    total_loops = div(total_rocks - loop_start_index, loop_length)
+    total_loop_height_gain = total_loops * loop_height_gain
+    steps_into_loop = total_rocks - (total_loops * loop_length + loop_start_index)
+
+    {height_at_step_in_loop, _i} =
+      states
+      |> Map.values()
+      |> Enum.find(fn {_h, i} -> i == steps_into_loop + loop_start_index - 1 end)
+
+    total_loop_height_gain + height_at_step_in_loop
+  end
+
+  def add_rocks_until_loop(
+        rock_shapes,
+        jet_patterns,
+        rock_positions,
+        max_height,
+        step,
+        rock_index,
+        previous_states
+      ) do
+    {updated_rock_positions, next_height, next_step} =
+      RockFall.add_new_rock(
+        rock_shapes,
+        jet_patterns,
+        rock_positions,
+        max_height,
+        step,
+        rock_index
+      )
+
+    previous_state_key =
+      {rem(next_step, Enum.count(jet_patterns)), rem(rock_index + 1, Enum.count(rock_shapes)),
+       top_rows(next_height, updated_rock_positions)}
+
+    if previous_states |> Map.has_key?(previous_state_key) do
+      {previous_state_key, next_height, rock_index, previous_states}
+    else
+      updated_previous_states =
+        previous_states |> Map.put(previous_state_key, {next_height, rock_index})
+
+      add_rocks_until_loop(
+        rock_shapes,
+        jet_patterns,
+        updated_rock_positions,
+        max(next_height, max_height),
+        next_step,
+        rock_index + 1,
+        updated_previous_states
+      )
+    end
+  end
+
+  def top_rows(max_height, rock_positions) do
+    rock_positions
+    |> MapSet.to_list()
+    |> Enum.map(fn {x, y} -> {x, @rows_to_track + y - max_height} end)
+    |> Enum.filter(fn {_x, y} -> y > 0 end)
+    |> MapSet.new()
+  end
+end
+
+Part2.solve(rock_shapes, test_input, 1_000_000_000_000)
+```
+
+```elixir
+Part2.solve(rock_shapes, input, 1_000_000_000_000)
 ```
