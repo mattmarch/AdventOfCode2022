@@ -1,0 +1,181 @@
+# Day 22
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/22.txt")
+test_input = File.read!("inputs/test22.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    [map, instructions] = input |> String.split("\n\n")
+    {parse_map(map), parse_instructions(instructions)}
+  end
+
+  def parse_map(map) do
+    map
+    |> String.split("\n")
+    |> Enum.with_index(1)
+    |> Enum.flat_map(&parse_map_row/1)
+    |> Map.new()
+  end
+
+  def parse_map_row({row, y}) do
+    row
+    |> String.codepoints()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {t, x} -> parse_map_tile(x, y, t) end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def parse_map_tile(x, y, "#"), do: {{x, y}, :wall}
+  def parse_map_tile(x, y, "."), do: {{x, y}, :open}
+  def parse_map_tile(_x, _y, " "), do: nil
+
+  def parse_instructions(instruction_line) do
+    instruction_line
+    |> String.split("R")
+    |> Enum.map(fn block ->
+      block |> String.split("L") |> Enum.map(&parse_distance/1) |> Enum.intersperse(:left)
+    end)
+    |> Enum.intersperse(:right)
+    |> List.flatten()
+  end
+
+  def parse_distance(distance), do: {:forward, String.to_integer(distance)}
+end
+
+{test_map, test_instructions} = test_input |> Parse.parse()
+```
+
+## Part 1
+
+```elixir
+defmodule Traverse do
+  def apply_moves(_map, position, heading, []), do: {position, heading}
+
+  def apply_moves(map, position, heading, [next_instruction | other_instructions]) do
+    {next_position, next_heading} = move(map, position, heading, next_instruction)
+    apply_moves(map, next_position, next_heading, other_instructions)
+  end
+
+  def move(_map, position, heading, {:forward, 0}), do: {position, heading}
+
+  def move(map, position, heading, {:forward, distance}) do
+    {next_position, tile_state} = get_next_position(map, position, heading)
+
+    case tile_state do
+      :open -> move(map, next_position, heading, {:forward, distance - 1})
+      :wall -> {position, heading}
+    end
+  end
+
+  def move(_map, position, heading, :left) do
+    new_heading =
+      case heading do
+        :north -> :west
+        :east -> :north
+        :south -> :east
+        :west -> :south
+      end
+
+    {position, new_heading}
+  end
+
+  def move(_map, position, heading, :right) do
+    new_heading =
+      case heading do
+        :north -> :east
+        :east -> :south
+        :south -> :west
+        :west -> :north
+      end
+
+    {position, new_heading}
+  end
+
+  def get_next_position(map, position, heading) do
+    next_coord = next_coordinate(position, heading)
+
+    case map |> Map.fetch(next_coord) do
+      {:ok, state} -> {next_coord, state}
+      :error -> try_loop_around(map, position, heading)
+    end
+  end
+
+  def try_loop_around(map, {x, _y}, :north) do
+    map
+    |> Map.to_list()
+    |> Enum.filter(fn {{tile_x, _tile_y}, _state} -> tile_x == x end)
+    |> Enum.max_by(fn {{^x, tile_y}, _state} -> tile_y end)
+  end
+
+  def try_loop_around(map, {_x, y}, :east) do
+    map
+    |> Map.to_list()
+    |> Enum.filter(fn {{_tile_x, tile_y}, _state} -> tile_y == y end)
+    |> Enum.min_by(fn {{tile_x, ^y}, _state} -> tile_x end)
+  end
+
+  def try_loop_around(map, {x, _y}, :south) do
+    map
+    |> Map.to_list()
+    |> Enum.filter(fn {{tile_x, _tile_y}, _state} -> tile_x == x end)
+    |> Enum.min_by(fn {{^x, tile_y}, _state} -> tile_y end)
+  end
+
+  def try_loop_around(map, {_x, y}, :west) do
+    map
+    |> Map.to_list()
+    |> Enum.filter(fn {{_tile_x, tile_y}, _state} -> tile_y == y end)
+    |> Enum.max_by(fn {{tile_x, ^y}, _state} -> tile_x end)
+  end
+
+  def next_coordinate({x, y}, :north), do: {x, y - 1}
+  def next_coordinate({x, y}, :east), do: {x + 1, y}
+  def next_coordinate({x, y}, :south), do: {x, y + 1}
+  def next_coordinate({x, y}, :west), do: {x - 1, y}
+end
+
+Traverse.apply_moves(test_map, {9, 1}, :east, test_instructions)
+```
+
+```elixir
+defmodule Solve do
+  def solve({map, instructions}) do
+    start_point = map |> get_top_left()
+
+    Traverse.apply_moves(map, start_point, :east, instructions)
+    |> calculate_password()
+  end
+
+  def calculate_password({{x, y}, heading}) do
+    1000 * y + 4 * x + heading_value(heading)
+  end
+
+  def get_top_left(map) do
+    map
+    |> Map.keys()
+    |> Enum.filter(fn {_x, y} -> y == 1 end)
+    |> Enum.min_by(fn {x, _y} -> x end)
+  end
+
+  def heading_value(:east), do: 0
+  def heading_value(:south), do: 1
+  def heading_value(:west), do: 2
+  def heading_value(:north), do: 3
+end
+
+Solve.solve({test_map, test_instructions})
+```
+
+```elixir
+input |> Parse.parse() |> Solve.solve()
+```
