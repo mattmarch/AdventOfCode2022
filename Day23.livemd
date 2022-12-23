@@ -1,0 +1,219 @@
+# Day 23
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/23.txt")
+test_input = File.read!("inputs/test23.txt")
+small_test_input = File.read!("inputs/test23_2.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.with_index()
+    |> Enum.flat_map(&parse_row/1)
+    |> MapSet.new()
+  end
+
+  def parse_row({row, y}) do
+    row
+    |> String.codepoints()
+    |> Enum.with_index()
+    |> Enum.map(fn {v, x} -> if v == "#", do: {x, y}, else: nil end)
+    |> Enum.reject(&is_nil/1)
+  end
+end
+
+test_elf_positions = test_input |> Parse.parse()
+```
+
+## Logic to run rounds and return updated positions
+
+```elixir
+defmodule Rounds do
+  def run_rounds(positions, rounds), do: run_rounds(positions, initial_directions(), rounds)
+
+  def run_rounds(positions, _directions, 0), do: positions
+
+  def run_rounds(positions, directions, rounds_remaining) do
+    run_rounds(
+      run_round(positions, directions),
+      rotate_head(directions),
+      rounds_remaining - 1
+    )
+  end
+
+  def initial_directions(), do: [:north, :south, :west, :east]
+
+  def rotate_head([head | tail]), do: tail ++ [head]
+
+  def run_round(start_elf_positions, directions) do
+    proposed_moves =
+      start_elf_positions
+      |> MapSet.to_list()
+      |> Enum.map(fn p -> {p, get_elf_proposed_position(p, start_elf_positions, directions)} end)
+
+    %{true => valid_moves, false => colliding_moves} =
+      proposed_moves
+      |> Enum.group_by(fn {_from, to} -> to end)
+      |> Map.values()
+      |> Enum.group_by(fn moves -> Enum.count(moves) == 1 end)
+      |> Map.put_new(true, [])
+      |> Map.put_new(false, [])
+
+    positions_from_valid_moves = valid_moves |> Enum.map(fn [{_from, to}] -> to end)
+
+    positions_from_colliding_moves =
+      colliding_moves
+      |> List.flatten()
+      |> Enum.map(fn {from, _to} -> from end)
+
+    (positions_from_valid_moves ++ positions_from_colliding_moves)
+    |> MapSet.new()
+  end
+
+  def get_elf_proposed_position(position, elf_positions, directions) do
+    if all_adjacent_positions_empty?(position, elf_positions) do
+      position
+    else
+      directions
+      |> Enum.find(fn d -> empty_in_direction?(position, d, elf_positions) end)
+      |> move_in_direction(position)
+    end
+  end
+
+  def empty_in_direction?(position, direction, elf_positions) do
+    positions_to_check(position, direction)
+    |> Enum.any?(fn p -> MapSet.member?(elf_positions, p) end)
+    |> Kernel.not()
+  end
+
+  def all_adjacent_positions_empty?(position, elf_positions) do
+    all_adjacent_positions(position)
+    |> Enum.any?(fn p -> MapSet.member?(elf_positions, p) end)
+    |> Kernel.not()
+  end
+
+  def all_adjacent_positions(position) do
+    [:north, :east, :south, :west]
+    |> Enum.flat_map(fn direction -> positions_to_check(position, direction) end)
+  end
+
+  def positions_to_check({x, y}, :north), do: [{x - 1, y - 1}, {x, y - 1}, {x + 1, y - 1}]
+  def positions_to_check({x, y}, :east), do: [{x + 1, y - 1}, {x + 1, y}, {x + 1, y + 1}]
+  def positions_to_check({x, y}, :south), do: [{x - 1, y + 1}, {x, y + 1}, {x + 1, y + 1}]
+  def positions_to_check({x, y}, :west), do: [{x - 1, y - 1}, {x - 1, y}, {x - 1, y + 1}]
+
+  def move_in_direction(:north, {x, y}), do: {x, y - 1}
+  def move_in_direction(:east, {x, y}), do: {x + 1, y}
+  def move_in_direction(:south, {x, y}), do: {x, y + 1}
+  def move_in_direction(:west, {x, y}), do: {x - 1, y}
+  def move_in_direction(nil, position), do: position
+end
+
+test_positions_after_10_rounds = test_elf_positions |> Rounds.run_rounds(10)
+```
+
+## Helper function to calculate the bounding box
+
+```elixir
+defmodule BoundingBox do
+  def get(position_list) do
+    {{min_x, _}, {max_x, _}} = position_list |> Enum.min_max_by(fn {x, _} -> x end)
+    {{_, min_y}, {_, max_y}} = position_list |> Enum.min_max_by(fn {_, y} -> y end)
+    {{min_x, min_y}, {max_x, max_y}}
+  end
+end
+```
+
+## Drawing output for debugging
+
+```elixir
+defmodule Draw do
+  def draw_positions(positions) do
+    {{min_x, min_y}, {max_x, max_y}} =
+      positions
+      |> MapSet.to_list()
+      |> BoundingBox.get()
+
+    min_y..max_y
+    |> Enum.map(fn y -> draw_row(positions, y, min_x, max_x) end)
+    |> Enum.join("\n")
+  end
+
+  def draw_row(positions, y, min_x, max_x) do
+    min_x..max_x
+    |> Enum.map(fn x -> if MapSet.member?(positions, {x, y}), do: "#", else: "." end)
+    |> Enum.join()
+  end
+end
+```
+
+```elixir
+small_test_starting_positions = small_test_input |> Parse.parse()
+
+0..4
+|> Enum.each(fn i ->
+  IO.puts("\nAfter #{i} round(s)")
+  small_test_starting_positions |> Rounds.run_rounds(i) |> Draw.draw_positions() |> IO.puts()
+end)
+```
+
+## Getting the solution from final positions
+
+```elixir
+defmodule Solve do
+  def solve(final_positions_set) do
+    final_positions =
+      final_positions_set
+      |> MapSet.to_list()
+
+    {{min_x, min_y}, {max_x, max_y}} = BoundingBox.get(final_positions)
+    total_area = (1 + max_x - min_x) * (1 + max_y - min_y)
+    total_area - Enum.count(final_positions)
+  end
+end
+
+test_positions_after_10_rounds |> Solve.solve()
+```
+
+```elixir
+input |> Parse.parse() |> Rounds.run_rounds(10) |> Solve.solve()
+```
+
+## Part 2
+
+```elixir
+defmodule RunToCompletion do
+  def rounds_until_complete(starting_positions),
+    do: rounds_until_complete(starting_positions, 1, Rounds.initial_directions())
+
+  def rounds_until_complete(starting_positions, round_number, directions) do
+    updated_positions = Rounds.run_round(starting_positions, directions)
+
+    if updated_positions == starting_positions do
+      round_number
+    else
+      rounds_until_complete(
+        updated_positions,
+        round_number + 1,
+        Rounds.rotate_head(directions)
+      )
+    end
+  end
+end
+
+test_elf_positions |> RunToCompletion.rounds_until_complete()
+```
+
+```elixir
+input |> Parse.parse() |> RunToCompletion.rounds_until_complete()
+```
