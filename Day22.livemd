@@ -193,6 +193,8 @@ Assuming cube looks like:
  F
 ```
 
+This only works for my real input (or anyone with the same cube configuration), and doesn't work for the example case.
+
 ```elixir
 defmodule TraverseCube do
   def apply_moves(_map, position, heading, []), do: {position, heading}
