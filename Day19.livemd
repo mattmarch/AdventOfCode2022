@@ -12,6 +12,8 @@ input = File.read!("inputs/19.txt")
 test_input = File.read!("inputs/test19.txt")
 ```
 
+## Define reusable Quantities and Blueprint structs and parse input
+
 ```elixir
 defmodule Quantities do
   defstruct ore: 0, clay: 0, obsidian: 0, geodes: 0
@@ -52,6 +54,12 @@ defmodule Quantities do
       obsidian: max(a.obsidian, b.obsidian),
       geodes: max(a.geodes, b.geodes)
     }
+  end
+
+  def better_or_equal_than?(quantities, compare_to) do
+    quantities
+    |> Map.to_list()
+    |> Enum.all?(fn {key, value} -> value >= Map.fetch!(compare_to, key) end)
   end
 end
 
@@ -109,39 +117,69 @@ end
 test_blueprints = test_input |> Blueprint.parse_all()
 ```
 
+## Run the simulation
+
+This involves calculating a very arbitrary `score` and choosing the top 100,000 paths by score to narrow the search space.
+
 ```elixir
 defmodule Simulation do
   def run(blueprint, time) do
     run_steps(
+      [{%Quantities{ore: 1}, %Quantities{}}],
       blueprint,
       get_maximum_robots_per_type(blueprint),
-      %Quantities{ore: 1},
-      %Quantities{},
       time
     )
   end
 
-  def run_steps(blueprint, maximums, robots, materials, remaining) do
-    if remaining == 0 do
-      [{materials, robots}]
-    else
-      [:none, :ore, :clay, :obsidian, :geodes]
-      |> Enum.filter(fn t -> maximum_robot_type_not_reached(t, robots, maximums) end)
-      |> Enum.map(fn type -> type |> try_build_robot(materials, blueprint) end)
-      |> Enum.filter(fn b -> b != nil end)
-      |> Enum.map(fn {type, remaining_materials} ->
-        run_minute(robots, remaining_materials, type)
-      end)
-      |> Enum.flat_map(fn {next_robots, next_materials} ->
-        run_steps(blueprint, maximums, next_robots, next_materials, remaining - 1)
-      end)
+  def run_steps(possible_states, _blueprint, _maximums, 0), do: possible_states
 
-      # |> Enum.max_by(fn quantities -> quantities.geodes end)
+  def run_steps(possible_states, blueprint, maximums, remaining) do
+    possible_states
+    |> Enum.flat_map(fn {robots, materials} ->
+      possible_steps_from_state(blueprint, maximums, robots, materials)
+    end)
+    |> Enum.uniq()
+    |> Enum.sort_by(&score/1, :desc)
+    |> Enum.take(100_000)
+    |> run_steps(blueprint, maximums, remaining - 1)
+  end
+
+  def possible_steps_from_state(blueprint, maximums, robots, materials) do
+    case try_build_robot(:geodes, materials, blueprint) do
+      {:geodes, remaining} ->
+        [run_minute(robots, remaining, :geodes)]
+
+      nil ->
+        [:none, :ore, :clay, :obsidian, :geodes]
+        |> Enum.reject(fn t -> maximum_robot_type_reached(t, robots, maximums) end)
+        |> Enum.map(fn type -> type |> try_build_robot(materials, blueprint) end)
+        |> Enum.filter(fn b -> b != nil end)
+        |> Enum.map(fn {type, remaining_materials} ->
+          run_minute(robots, remaining_materials, type)
+        end)
     end
   end
 
-  def maximum_robot_type_not_reached(robot_type, robots, maximums) do
-    Map.get(robots, robot_type) <= Map.get(maximums, robot_type)
+  def score({robots, materials}) do
+    [
+      1 * robots.ore,
+      1 * robots.clay,
+      50 * robots.obsidian,
+      100 * robots.geodes,
+      1 * materials.ore,
+      1 * materials.clay,
+      5 * materials.obsidian,
+      100 * materials.geodes
+    ]
+    |> Enum.sum()
+  end
+
+  def maximum_robot_type_reached(:none, _robots, _maximums), do: false
+  def maximum_robot_type_reached(:geodes, _robots, _maximums), do: false
+
+  def maximum_robot_type_reached(robot_type, robots, maximums) do
+    Map.get(robots, robot_type) == Map.get(maximums, robot_type)
   end
 
   def get_maximum_robots_per_type(blueprint) do
@@ -190,5 +228,49 @@ defmodule Simulation do
   end
 end
 
-Simulation.run(test_blueprints |> hd, 15)
+res =
+  Simulation.run(test_blueprints |> hd, 24)
+  |> Enum.max_by(fn {_robots, materials} -> materials.geodes end)
+```
+
+```elixir
+defmodule Solve do
+  def solve(blueprints, minutes) do
+    blueprints
+    |> Enum.map(fn b -> b.number * best_score_for_blueprint(b, minutes) end)
+    |> Enum.sum()
+  end
+
+  def best_score_for_blueprint(blueprint, minutes) do
+    blueprint
+    |> Simulation.run(minutes)
+    |> Enum.map(fn {_robots, materials} -> materials.geodes end)
+    |> Enum.max()
+  end
+end
+
+test_blueprints |> Solve.solve(24)
+```
+
+```elixir
+input |> Blueprint.parse_all() |> Solve.solve(24)
+```
+
+## Part 2
+
+```elixir
+defmodule Solve2 do
+  def solve(blueprints, minutes) do
+    blueprints
+    |> Enum.take(3)
+    |> Enum.map(fn b -> Solve.best_score_for_blueprint(b, minutes) end)
+    |> Enum.product()
+  end
+end
+
+test_blueprints |> Solve2.solve(32)
+```
+
+```elixir
+input |> Blueprint.parse_all() |> Solve2.solve(32)
 ```
