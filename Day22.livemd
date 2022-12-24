@@ -106,32 +106,32 @@ defmodule Traverse do
 
     case map |> Map.fetch(next_coord) do
       {:ok, state} -> {next_coord, state}
-      :error -> try_loop_around(map, position, heading)
+      :error -> loop_around(map, position, heading)
     end
   end
 
-  def try_loop_around(map, {x, _y}, :north) do
+  def loop_around(map, {x, _y}, :north) do
     map
     |> Map.to_list()
     |> Enum.filter(fn {{tile_x, _tile_y}, _state} -> tile_x == x end)
     |> Enum.max_by(fn {{^x, tile_y}, _state} -> tile_y end)
   end
 
-  def try_loop_around(map, {_x, y}, :east) do
+  def loop_around(map, {_x, y}, :east) do
     map
     |> Map.to_list()
     |> Enum.filter(fn {{_tile_x, tile_y}, _state} -> tile_y == y end)
     |> Enum.min_by(fn {{tile_x, ^y}, _state} -> tile_x end)
   end
 
-  def try_loop_around(map, {x, _y}, :south) do
+  def loop_around(map, {x, _y}, :south) do
     map
     |> Map.to_list()
     |> Enum.filter(fn {{tile_x, _tile_y}, _state} -> tile_x == x end)
     |> Enum.min_by(fn {{^x, tile_y}, _state} -> tile_y end)
   end
 
-  def try_loop_around(map, {_x, y}, :west) do
+  def loop_around(map, {_x, y}, :west) do
     map
     |> Map.to_list()
     |> Enum.filter(fn {{_tile_x, tile_y}, _state} -> tile_y == y end)
@@ -178,4 +178,142 @@ Solve.solve({test_map, test_instructions})
 
 ```elixir
 input |> Parse.parse() |> Solve.solve()
+```
+
+## Part 2
+
+Modified logic from `Traverse` with some very hardcoded edge handling.
+
+Assuming cube looks like:
+
+```
+    A  B
+    C
+ D  E
+ F
+```
+
+```elixir
+defmodule TraverseCube do
+  def apply_moves(_map, position, heading, []), do: {position, heading}
+
+  def apply_moves(map, position, heading, [next_instruction | other_instructions]) do
+    {next_position, next_heading} = move(map, position, heading, next_instruction)
+    apply_moves(map, next_position, next_heading, other_instructions)
+  end
+
+  def move(_map, position, heading, {:forward, 0}), do: {position, heading}
+
+  def move(map, position, heading, {:forward, distance}) do
+    {next_position, next_heading, tile_state} = get_next_position(map, position, heading)
+
+    case tile_state do
+      :open -> move(map, next_position, next_heading, {:forward, distance - 1})
+      :wall -> {position, heading}
+    end
+  end
+
+  def move(_map, position, heading, :left) do
+    new_heading =
+      case heading do
+        :north -> :west
+        :east -> :north
+        :south -> :east
+        :west -> :south
+      end
+
+    {position, new_heading}
+  end
+
+  def move(_map, position, heading, :right) do
+    new_heading =
+      case heading do
+        :north -> :east
+        :east -> :south
+        :south -> :west
+        :west -> :north
+      end
+
+    {position, new_heading}
+  end
+
+  def get_next_position(map, position, heading) do
+    next_coord = next_coordinate(position, heading)
+
+    case map |> Map.fetch(next_coord) do
+      {:ok, state} ->
+        {next_coord, heading, state}
+
+      :error ->
+        {next_position, next_heading} = loop_around(position, heading)
+        {next_position, next_heading, map |> Map.fetch!(next_position)}
+    end
+  end
+
+  def loop_around(position, :north) do
+    case position do
+      # A -> west F
+      {x, 1} when x in 51..100 -> {{1, 100 + x}, :east}
+      # B -> south F
+      {x, 1} when x in 101..150 -> {{x - 100, 200}, :north}
+      # D -> west C
+      {x, 101} when x in 1..50 -> {{51, x + 50}, :east}
+    end
+  end
+
+  def loop_around(position, :east) do
+    case position do
+      # B -> east E
+      {150, y} when y in 1..50 -> {{100, 151 - y}, :west}
+      # C -> south B
+      {100, y} when y in 51..100 -> {{50 + y, 50}, :north}
+      # E -> east B
+      {100, y} when y in 101..150 -> {{150, 151 - y}, :west}
+      # F -> south E
+      {50, y} when y in 151..200 -> {{y - 100, 150}, :north}
+    end
+  end
+
+  def loop_around(position, :south) do
+    case position do
+      # B -> east C
+      {x, 50} when x in 101..150 -> {{100, x - 50}, :west}
+      # E -> east F
+      {x, 150} when x in 51..100 -> {{50, x + 100}, :west}
+      # F -> north B
+      {x, 200} when x in 1..50 -> {{x + 100, 1}, :south}
+    end
+  end
+
+  def loop_around(position, :west) do
+    case position do
+      # A -> west D
+      {51, y} when y in 1..50 -> {{1, 151 - y}, :east}
+      # C -> north D
+      {51, y} when y in 51..100 -> {{y - 50, 101}, :south}
+      # D -> west A
+      {1, y} when y in 101..150 -> {{51, 151 - y}, :east}
+      # F -> north A
+      {1, y} when y in 151..200 -> {{y - 100, 1}, :south}
+    end
+  end
+
+  def next_coordinate({x, y}, :north), do: {x, y - 1}
+  def next_coordinate({x, y}, :east), do: {x + 1, y}
+  def next_coordinate({x, y}, :south), do: {x, y + 1}
+  def next_coordinate({x, y}, :west), do: {x - 1, y}
+end
+```
+
+```elixir
+defmodule Solve2 do
+  def solve({map, instructions}) do
+    start_point = map |> Solve.get_top_left()
+
+    TraverseCube.apply_moves(map, start_point, :east, instructions)
+    |> Solve.calculate_password()
+  end
+end
+
+input |> Parse.parse() |> Solve2.solve()
 ```
