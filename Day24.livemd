@@ -1,0 +1,201 @@
+# Day 24
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Parse input
+
+```elixir
+input = File.read!("inputs/24.txt")
+test_input = File.read!("inputs/test24.txt")
+small_test_input = File.read!("inputs/test24_2.txt")
+```
+
+```elixir
+defmodule Parse do
+  def parse(input) do
+    input
+    |> String.split("\n")
+    |> Enum.with_index()
+    |> Enum.flat_map(&parse_row/1)
+    |> Map.new()
+  end
+
+  def parse_row({row, y}) do
+    row
+    |> String.codepoints()
+    |> Enum.with_index()
+    |> Enum.map(fn {v, x} -> {{x, y}, parse_value(v)} end)
+    |> Enum.reject(fn {_p, v} -> is_nil(v) end)
+  end
+
+  def parse_value("#"), do: :wall
+  def parse_value("."), do: nil
+  def parse_value("^"), do: [:north]
+  def parse_value(">"), do: [:east]
+  def parse_value("v"), do: [:south]
+  def parse_value("<"), do: [:west]
+end
+
+small_test_start = small_test_input |> Parse.parse()
+```
+
+## Work out blizzard positions
+
+```elixir
+defmodule Blizzards do
+  def update_n(states, 0), do: states
+  def update_n(states, n), do: states |> update() |> update_n(n - 1)
+
+  def update(states) do
+    bounds = get_bounds(states)
+
+    updated_blizzards =
+      states
+      |> Map.to_list()
+      |> Enum.filter(fn {_p, v} -> is_blizzard?(v) end)
+      |> Enum.flat_map(fn {p, directions} ->
+        directions |> Enum.map(fn d -> {p, d} end)
+      end)
+      |> Enum.map(fn {p, v} -> {update_position(p, bounds, v), v} end)
+      |> Enum.group_by(fn {p, _v} -> p end, fn {_p, v} -> v end)
+
+    walls =
+      states
+      |> Map.to_list()
+      |> Enum.filter(fn {_p, v} -> v == :wall end)
+      |> Map.new()
+
+    Map.merge(updated_blizzards, walls)
+  end
+
+  def get_bounds(states) do
+    states |> Map.keys() |> Enum.min_max_by(fn {x, y} -> x + y end)
+  end
+
+  def is_blizzard?(dirs) when is_list(dirs), do: true
+  def is_blizzard?(_), do: false
+
+  def update_position({x, y}, {{_, min_y}, {_, max_y}}, :north) do
+    if y - 1 == min_y, do: {x, max_y - 1}, else: {x, y - 1}
+  end
+
+  def update_position({x, y}, {{min_x, _}, {max_x, _}}, :east) do
+    if x + 1 == max_x, do: {min_x + 1, y}, else: {x + 1, y}
+  end
+
+  def update_position({x, y}, {{_, min_y}, {_, max_y}}, :south) do
+    if y + 1 == max_y, do: {x, min_y + 1}, else: {x, y + 1}
+  end
+
+  def update_position({x, y}, {{min_x, _}, {max_x, _}}, :west) do
+    if x - 1 == min_x, do: {max_x - 1, y}, else: {x - 1, y}
+  end
+end
+
+small_test_start |> Blizzards.update_n(2)
+```
+
+## Traversing the valley
+
+```elixir
+defmodule Traverse do
+  def traverse(initial_valley_state) do
+    bounds = Blizzards.get_bounds(initial_valley_state)
+    {start_position, end_position} = get_start_and_end(bounds)
+
+    {_final_valley_state, steps} =
+      take_traverse_steps(initial_valley_state, [start_position], end_position, bounds, 0)
+
+    steps
+  end
+
+  def take_traverse_steps(valley_state, positions, end_position, bounds, steps_so_far) do
+    next_state = valley_state |> Blizzards.update()
+    next_positions = positions |> take_possible_steps(next_state, bounds)
+
+    if next_positions |> Enum.member?(end_position) do
+      {next_state, steps_so_far + 1}
+    else
+      take_traverse_steps(next_state, next_positions, end_position, bounds, steps_so_far + 1)
+    end
+  end
+
+  def take_possible_steps(possible_positions, valley_state, bounds) do
+    possible_positions
+    |> Enum.flat_map(fn p -> possible_steps_from_position(p, valley_state, bounds) end)
+    |> Enum.uniq()
+  end
+
+  def possible_steps_from_position({x, y}, valley_state, bounds) do
+    [{x, y}, {x, y - 1}, {x + 1, y}, {x, y + 1}, {x - 1, y}]
+    |> Enum.reject(fn p -> valley_state |> Map.has_key?(p) end)
+    |> Enum.filter(fn p -> within_bounds?(p, bounds) end)
+  end
+
+  def within_bounds?({x, y}, {{min_x, min_y}, {max_x, max_y}}) do
+    x >= min_x and x <= max_x and y >= min_y and y <= max_y
+  end
+
+  def get_start_and_end({{min_x, min_y}, {max_x, max_y}}),
+    do: {{min_x + 1, min_y}, {max_x - 1, max_y}}
+end
+
+small_test_start |> Traverse.traverse()
+```
+
+```elixir
+test_input |> Parse.parse() |> Traverse.traverse()
+```
+
+```elixir
+input |> Parse.parse() |> Traverse.traverse()
+```
+
+## Part 2
+
+```elixir
+defmodule TraversePart2 do
+  def traverse(initial_valley_state) do
+    bounds = Blizzards.get_bounds(initial_valley_state)
+    {start_position, end_position} = Traverse.get_start_and_end(bounds)
+
+    {state_after_trip_out, steps_after_trip_out} =
+      Traverse.take_traverse_steps(
+        initial_valley_state,
+        [start_position],
+        end_position,
+        bounds,
+        0
+      )
+
+    {state_after_trip_back, steps_after_trip_back} =
+      Traverse.take_traverse_steps(
+        state_after_trip_out,
+        [end_position],
+        start_position,
+        bounds,
+        steps_after_trip_out
+      )
+
+    {_state_after_final_trip, steps_after_final_trip} =
+      Traverse.take_traverse_steps(
+        state_after_trip_back,
+        [start_position],
+        end_position,
+        bounds,
+        steps_after_trip_back
+      )
+
+    steps_after_final_trip
+  end
+end
+
+test_input |> Parse.parse() |> TraversePart2.traverse()
+```
+
+```elixir
+input |> Parse.parse() |> TraversePart2.traverse()
+```
