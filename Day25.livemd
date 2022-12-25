@@ -1,0 +1,81 @@
+# Day 25
+
+```elixir
+# Change working directory to this file's directory.
+File.cd(Path.dirname(__ENV__.file))
+```
+
+## Read input files
+
+```elixir
+input = File.read!("inputs/25.txt")
+test_input = File.read!("inputs/test25.txt")
+```
+
+## SNAFU numbers to integers
+
+```elixir
+defmodule ParseSnafu do
+  def parse_all(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&parse_number/1)
+  end
+
+  def parse_number(snafu) do
+    snafu
+    |> String.codepoints()
+    |> Enum.reverse()
+    |> Enum.with_index()
+    |> Enum.map(fn {d, i} -> 5 ** i * parse_digit(d) end)
+    |> Enum.sum()
+  end
+
+  def parse_digit(d) when d in ["2", "1", "0"], do: d |> String.to_integer()
+  def parse_digit("-"), do: -1
+  def parse_digit("="), do: -2
+end
+
+test_sum = test_input |> ParseSnafu.parse_all() |> Enum.sum()
+```
+
+## Integers to SNAFU numbers
+
+```elixir
+defmodule ToSnafu do
+  def to_snafu(number) do
+    get_snafu_digits(number, [])
+    |> Enum.map(&get_snafu_digit_representation/1)
+    |> Enum.join()
+  end
+
+  def get_snafu_digits(0, digits), do: digits
+
+  def get_snafu_digits(number_remaining, digits_so_far) do
+    column_value = 5 ** Enum.count(digits_so_far)
+
+    this_digit =
+      case number_remaining |> rem(column_value * 5) |> div(column_value) do
+        n when n in 0..2 -> n
+        n when n in 3..4 -> n - 5
+      end
+
+    get_snafu_digits(number_remaining - this_digit * column_value, [this_digit | digits_so_far])
+  end
+
+  def get_snafu_digit_representation(d) when d in 0..2, do: to_string(d)
+  def get_snafu_digit_representation(-1), do: "-"
+  def get_snafu_digit_representation(-2), do: "="
+end
+
+test_sum |> ToSnafu.to_snafu()
+```
+
+## Solving with the real input
+
+```elixir
+input
+|> ParseSnafu.parse_all()
+|> Enum.sum()
+|> ToSnafu.to_snafu()
+```
