@@ -1,4 +1,4 @@
-# Day 25
+# 🎄 Day 25 🎄
 
 ```elixir
 # Change working directory to this file's directory.
@@ -60,7 +60,10 @@ defmodule ToSnafu do
         n when n in 3..4 -> n - 5
       end
 
-    get_snafu_digits(number_remaining - this_digit * column_value, [this_digit | digits_so_far])
+    get_snafu_digits(
+      number_remaining - this_digit * column_value,
+      [this_digit | digits_so_far]
+    )
   end
 
   def get_snafu_digit_representation(d) when d in 0..2, do: to_string(d)
